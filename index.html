@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assets_Maker.AI - AI Game Asset Generator & Editor</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Three.js and OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Simple OBJ Exporter for 3D export -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
+    <!-- Style Sheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Navigation Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-glow"></div>
+                <i data-lucide="sparkles" class="logo-icon"></i>
+                <span class="logo-text">Assets_Maker<span class="logo-highlight">.AI</span></span>
+            </div>
+            <div class="workspace-tabs">
+                <button class="tab-btn active" data-workspace="2d" id="tab-2d">
+                    <i data-lucide="image"></i> 2D Sprite
+                </button>
+                <button class="tab-btn" data-workspace="2.5d" id="tab-25d">
+                    <i data-lucide="layers"></i> 2.5D Isometric
+                </button>
+                <button class="tab-btn" data-workspace="3d" id="tab-3d">
+                    <i data-lucide="box"></i> 3D Model
+                </button>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary btn-icon-only" id="undo-btn" title="Deshacer (Ctrl+Z)">
+                    <i data-lucide="undo-2"></i>
+                </button>
+                <button class="btn btn-secondary btn-icon-only" id="redo-btn" title="Rehacer (Ctrl+Y)">
+                    <i data-lucide="redo-2"></i>
+                </button>
+                <button class="btn btn-primary" id="export-btn">
+                    <i data-lucide="download"></i> Exportar Asset
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="app-body">
+            <!-- Left Panel: AI Generator -->
+            <section class="panel left-panel">
+                <div class="panel-header">
+                    <i data-lucide="wand-2"></i>
+                    <h2>Generador IA</h2>
+                </div>
+                <div class="panel-content">
+                    <div class="form-group">
+                        <label for="prompt-input">¿Qué deseas crear?</label>
+                        <textarea id="prompt-input" placeholder="Ej. Espada mística legendaria envuelta en llamas azules, cofre pirata antiguo con monedas de oro..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="style-select">Estilo Artístico</label>
+                        <div class="style-selector" id="style-select">
+                            <div class="style-option active" data-style="pixel">
+                                <i data-lucide="grid"></i>
+                                <span>Pixel Art</span>
+                            </div>
+                            <div class="style-option" data-style="vector">
+                                <i data-lucide="bezier-curve" style="transform: scale(0.95)"></i>
+                                <span>Vectorial</span>
+                            </div>
+                            <div class="style-option" data-style="cartoon">
+                                <i data-lucide="palette"></i>
+                                <span>Dibujo animado</span>
+                            </div>
+                            <div class="style-option" data-style="realistic">
+                                <i data-lucide="camera"></i>
+                                <span>Realista</span>
+                            </div>
+                            <div class="style-option" data-style="voxel">
+                                <i data-lucide="cuboid"></i>
+                                <span>Voxel / Retro 3D</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label for="res-select">Resolución</label>
+                            <select id="res-select" class="form-control">
+                                <option value="64">64 x 64 px</option>
+                                <option value="128">128 x 128 px</option>
+                                <option value="256" selected>256 x 256 px</option>
+                                <option value="512">512 x 512 px</option>
+                            </select>
+                        </div>
+                        <div class="form-group half">
+                            <label for="bg-select">Fondo</label>
+                            <select id="bg-select" class="form-control">
+                                <option value="transparent" selected>Transparente</option>
+                                <option value="solid">Sólido oscuro</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-accent btn-large btn-glowing" id="generate-btn">
+                        <span class="btn-text">Forjar con IA</span>
+                        <i data-lucide="sparkles"></i>
+                    </button>
+
+                    <div class="divider"></div>
+
+                    <!-- Fine-Tuning/AI Edits -->
+                    <div class="panel-section-title">
+                        <i data-lucide="sliders-horizontal"></i>
+                        <h3>Ajustes de Generación IA</h3>
+                    </div>
+                    <div class="form-group">
+                        <label for="negative-prompt">Prompt Negativo (Evitar)</label>
+                        <input type="text" id="negative-prompt" class="form-control" placeholder="borroso, deformado, mala calidad...">
+                    </div>
+                    <div class="form-group">
+                        <label for="ai-guidance">Fuerza de la Guía (CFG)</label>
+                        <div class="range-slider-container">
+                            <input type="range" id="ai-guidance" min="1" max="15" step="0.5" value="7.5">
+                            <span class="slider-val" id="guidance-val">7.5</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Center Panel: Interactive Canvas / 3D Editor -->
+            <section class="workspace-center">
+                <!-- Toolbar for Editing -->
+                <div class="editor-toolbar">
+                    <div class="tool-group">
+                        <button class="tool-btn active" id="tool-brush" title="Pincel (B)">
+                            <i data-lucide="brush"></i>
+                        </button>
+                        <button class="tool-btn" id="tool-eraser" title="Borrador (E)">
+                            <i data-lucide="eraser"></i>
+                        </button>
+                        <button class="tool-btn" id="tool-picker" title="Gotero / Selector Color (I)">
+                            <i data-lucide="pipette"></i>
+                        </button>
+                        <button class="tool-btn" id="tool-fill" title="Cubeta de Pintura (G)">
+                            <i data-lucide="paint-bucket"></i>
+                        </button>
+                        <button class="tool-btn" id="tool-crop" title="Recortar Lienzo">
+                            <i data-lucide="crop"></i>
+                        </button>
+                    </div>
+
+                    <div class="tool-separator"></div>
+
+                    <div class="tool-group">
+                        <div class="color-picker-wrapper">
+                            <input type="color" id="primary-color" value="#a855f7" title="Color Principal">
+                            <span class="color-indicator" style="background-color: #a855f7"></span>
+                        </div>
+                        <div class="brush-size-control" title="Tamaño del Pincel">
+                            <i data-lucide="circle" class="size-icon-small"></i>
+                            <input type="range" id="brush-size" min="1" max="50" value="8">
+                            <span id="brush-size-val">8px</span>
+                        </div>
+                    </div>
+
+                    <div class="tool-separator"></div>
+
+                    <div class="tool-group">
+                        <button class="tool-btn" id="btn-clear" title="Limpiar Lienzo">
+                            <i data-lucide="trash-2"></i>
+                        </button>
+                        <button class="tool-btn" id="btn-center-view" title="Centrar Vista">
+                            <i data-lucide="maximize"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Main viewport wrapper -->
+                <div class="viewport-wrapper">
+                    <!-- 2D / 2.5D Canvas Area -->
+                    <div class="canvas-container" id="canvas-container">
+                        <div class="canvas-grid-helper" id="canvas-grid-helper"></div>
+                        <canvas id="editor-canvas"></canvas>
+                        <!-- Crop Overlay Box -->
+                        <div class="crop-box" id="crop-box" style="display: none;">
+                            <div class="crop-handle nw"></div>
+                            <div class="crop-handle ne"></div>
+                            <div class="crop-handle sw"></div>
+                            <div class="crop-handle se"></div>
+                            <div class="crop-actions">
+                                <button class="crop-action-btn confirm" id="crop-confirm" title="Confirmar Recorte"><i data-lucide="check"></i></button>
+                                <button class="crop-action-btn cancel" id="crop-cancel" title="Cancelar"><i data-lucide="x"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3D Viewer Area -->
+                    <div class="three-container" id="three-container" style="display: none;">
+                        <div class="three-toolbar">
+                            <span class="three-mesh-label">Visualizar en modelo:</span>
+                            <select id="three-mesh-select" class="form-control-sm">
+                                <option value="mesh_3d" selected>Modelo 3D Real (Poligonal)</option>
+                                <option value="voxel_3d">Modelo Voxel 3D Extruido</option>
+                                <option value="cube">Cubo de Asset</option>
+                                <option value="sphere">Esfera</option>
+                                <option value="cylinder">Cilindro / Columna</option>
+                                <option value="plane">Plano (Tarjeta 2.5D)</option>
+                                <option value="character">Personaje / Sprite Billboard</option>
+                                <option value="isometric_terrain">Bloque de Terreno Isométrico</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" id="three-wireframe-btn">
+                                <i data-lucide="eye"></i> Malla / Sólido
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="three-auto-rotate-btn">
+                                <i data-lucide="refresh-cw"></i> Auto Rotar
+                            </button>
+                        </div>
+                        <div id="three-viewport"></div>
+                    </div>
+
+                    <!-- Grid Overlay toggle button -->
+                    <button class="viewport-helper-btn" id="btn-toggle-grid" title="Mostrar/Ocultar Cuadrícula">
+                        <i data-lucide="grid-3x3"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Panel: Adjustments & Texture Options -->
+            <section class="panel right-panel">
+                <div class="panel-header">
+                    <i data-lucide="sliders"></i>
+                    <h2>Retoque y Ajustes</h2>
+                </div>
+                <div class="panel-content">
+                    <!-- Filters and Color Shifts -->
+                    <div class="panel-section-title">
+                        <i data-lucide="sliders-horizontal"></i>
+                        <h3>Ajustes de Color</h3>
+                    </div>
+
+                    <div class="adjustment-group">
+                        <div class="adj-header">
+                            <label for="adj-brightness">Brillo</label>
+                            <span class="adj-value" id="brightness-val">100%</span>
+                        </div>
+                        <input type="range" id="adj-brightness" min="0" max="200" value="100">
+                    </div>
+
+                    <div class="adjustment-group">
+                        <div class="adj-header">
+                            <label for="adj-contrast">Contraste</label>
+                            <span class="adj-value" id="contrast-val">100%</span>
+                        </div>
+                        <input type="range" id="adj-contrast" min="0" max="200" value="100">
+                    </div>
+
+                    <div class="adjustment-group">
+                        <div class="adj-header">
+                            <label for="adj-saturation">Saturación</label>
+                            <span class="adj-value" id="saturation-val">100%</span>
+                        </div>
+                        <input type="range" id="adj-saturation" min="0" max="200" value="100">
+                    </div>
+
+                    <div class="adjustment-group">
+                        <div class="adj-header">
+                            <label for="adj-hue">Tono (Hue-Shift)</label>
+                            <span class="adj-value" id="hue-val">0°</span>
+                        </div>
+                        <input type="range" id="adj-hue" min="-180" max="180" value="0">
+                    </div>
+
+                    <button class="btn btn-secondary btn-full btn-sm" id="btn-apply-adjustments">
+                        Aplicar Ajustes
+                    </button>
+                    <button class="btn btn-ghost btn-full btn-sm" id="btn-reset-adjustments">
+                        Restablecer Todo
+                    </button>
+
+                    <div class="divider"></div>
+
+                    <!-- AI Inpainting/Edits -->
+                    <div class="panel-section-title">
+                        <i data-lucide="sparkles"></i>
+                        <h3>Retoque por IA (Inpaint)</h3>
+                    </div>
+                    <p class="panel-info-text">Pinta en el lienzo lo que deseas cambiar, ingresa el nuevo detalle abajo y haz clic en Editar.</p>
+                    <div class="form-group">
+                        <textarea id="inpaint-prompt" placeholder="Ej. Cambiar el color de la empuñadura a rojo rubí brillante, añadir runas mágicas grabadas..."></textarea>
+                    </div>
+                    <button class="btn btn-accent btn-full" id="inpaint-btn">
+                        <span>Retocar Selección IA</span>
+                        <i data-lucide="wand-2"></i>
+                    </button>
+
+                    <div class="divider"></div>
+
+                    <!-- 3D Texture Properties (Visible only when in 3D tab) -->
+                    <div id="three-settings" style="display: none;">
+                        <div class="panel-section-title">
+                            <i data-lucide="box"></i>
+                            <h3>Parámetros de Textura 3D</h3>
+                        </div>
+                        <div class="form-group">
+                            <label for="three-roughness">Rugosidad (Roughness)</label>
+                            <input type="range" id="three-roughness" min="0" max="1" step="0.05" value="0.5">
+                        </div>
+                        <div class="form-group">
+                            <label for="three-metalness">Metalicidad (Metalness)</label>
+                            <input type="range" id="three-metalness" min="0" max="1" step="0.05" value="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label for="three-bump">Relieve (Bump Scale)</label>
+                            <input type="range" id="three-bump" min="0" max="0.1" step="0.01" value="0.02">
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Panel: Gallery & History -->
+        <footer class="app-footer">
+            <div class="footer-title">
+                <i data-lucide="folder-heart"></i>
+                <span>Biblioteca de Assets Creados</span>
+            </div>
+            <div class="gallery-container" id="gallery-container">
+                <!-- Dynamically populated assets go here -->
+                <div class="gallery-empty-state" id="gallery-empty">
+                    <p>Aún no has creado ningún asset. ¡Escribe un prompt en el panel izquierdo y dale a "Forjar con IA"!</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- AI Generation Loading Modal -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loader-content">
+            <div class="loading-spinner">
+                <div class="spinner-ring ring-outer"></div>
+                <div class="spinner-ring ring-middle"></div>
+                <div class="spinner-ring ring-inner"></div>
+                <i data-lucide="sparkles" class="loading-icon-glow"></i>
+            </div>
+            <h3 id="loader-title">Forjando tu Asset mediante IA...</h3>
+            <p id="loader-subtitle">Generando detalles y mapas de texturas</p>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="progress-fill"></div>
+            </div>
+            <span class="progress-text" id="progress-percent">0%</span>
+        </div>
+    </div>
+
+    <!-- Custom Script -->
+    <script src="app.js"></script>
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>

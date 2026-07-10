@@ -894,6 +894,16 @@ document.addEventListener('DOMContentLoaded', () => {
             drawIsometricBlockAsset(cx, cy, baseColor, accentColor, glowColor, style);
         } else if (lp.includes('arco') || lp.includes('bow') || lp.includes('flecha') || lp.includes('arrow')) {
             drawBowAsset(cx, cy, baseColor, accentColor, glowColor, style);
+        } else if (lp.includes('casco') || lp.includes('helmet') || lp.includes('yelmo') || lp.includes('coraza')) {
+            drawHelmetAsset(cx, cy, baseColor, accentColor, glowColor, style);
+        } else if (lp.includes('anillo') || lp.includes('ring') || lp.includes('alianza') || lp.includes('joya')) {
+            drawRingAsset(cx, cy, baseColor, accentColor, glowColor, style);
+        } else if (lp.includes('baston') || lp.includes('staff') || lp.includes('varita') || lp.includes('wand') || lp.includes('cetro')) {
+            drawStaffAsset(cx, cy, baseColor, accentColor, glowColor, style);
+        } else if (lp.includes('llave') || lp.includes('key')) {
+            drawKeyAsset(cx, cy, baseColor, accentColor, glowColor, style);
+        } else if (lp.includes('pergamino') || lp.includes('scroll') || lp.includes('libro') || lp.includes('book') || lp.includes('tomo')) {
+            drawScrollAsset(cx, cy, baseColor, accentColor, glowColor, style);
         } else {
             // Default: Magic Orb / Gem
             drawGemAsset(cx, cy, baseColor, accentColor, glowColor, style);
@@ -1191,8 +1201,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.moveTo(cx - Math.round(2 * S), cy + Math.round(6 * S));
             ctx.lineTo(cx + Math.round(2 * S), cy + Math.round(6 * S));
             ctx.lineTo(cx + Math.round(1 * S), cy - bladeLen + Math.round(12 * S));
-            ctx.lineTo(cx, cy - bladeLen + Math.round(2 * S));
-            ctx.lineTo(cx - Math.round(1 * S), cy - bladeLen + Math.round(12 * S));
             ctx.closePath();
             ctx.fill();
         }
@@ -1314,60 +1322,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Coin glow underneath
             drawGlowHalo(cx, cy + h * 0.5, w * 0.4, glowCol, 2);
-        } else {
-            // Wood Grain Linear Gradient
-            const woodGrad = ctx.createLinearGradient(cx, cy - h/4, cx, cy + h/2);
-            woodGrad.addColorStop(0, base);
-            woodGrad.addColorStop(0.5, adjustBrightness(base, -10));
-            woodGrad.addColorStop(1, adjustBrightness(base, -25));
-            ctx.fillStyle = woodGrad;
-            ctx.fillRect(cx - w/2, cy - h/4, w, h*0.75);
-
-            // Steel/Metal Trim Corner Reinforcements
-            const metalGrad = ctx.createLinearGradient(cx - w/2, cy, cx + w/2, cy);
-            metalGrad.addColorStop(0, acc);
-            metalGrad.addColorStop(0.1, adjustBrightness(acc, -30));
-            metalGrad.addColorStop(0.9, adjustBrightness(acc, -30));
-            metalGrad.addColorStop(1, acc);
-            
-            ctx.fillStyle = metalGrad;
-            ctx.fillRect(cx - w/2, cy - h/4, 12, h*0.75);
-            ctx.fillRect(cx + w/2 - 12, cy - h/4, 12, h*0.75);
-
-            // Lid of the chest with reflection gradients
-            ctx.fillStyle = woodGrad;
-            ctx.beginPath();
-            ctx.arc(cx, cy - h/4, w/2, Math.PI, 0);
-            ctx.fill();
-
-            // Rounded Lid Corners Metallic
-            ctx.fillStyle = acc;
-            ctx.beginPath();
-            ctx.arc(cx, cy - h/4, w/2, Math.PI, Math.PI + 0.25);
-            ctx.lineTo(cx - w/2 + 12, cy - h/4);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.beginPath();
-            ctx.arc(cx, cy - h/4, w/2, 0, -0.25, true);
-            ctx.lineTo(cx + w/2 - 12, cy - h/4);
-            ctx.closePath();
-            ctx.fill();
-
-            // Lock plate
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(cx - 10, cy - h/4 + 2, 20, 20);
-            ctx.strokeStyle = acc;
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(cx - 10, cy - h/4 + 2, 20, 20);
-
-            const lockGlow = ctx.createRadialGradient(cx, cy - h/4 + 10, 1, cx, cy - h/4 + 10, 5);
-            lockGlow.addColorStop(0, '#ffffff');
-            lockGlow.addColorStop(1, acc);
-            ctx.fillStyle = lockGlow;
-            ctx.beginPath();
-            ctx.arc(cx, cy - h/4 + 10, 4, 0, Math.PI * 2);
-            ctx.fill();
         } else {
             // ---- PIXEL / CARTOON CHEST ----
             ctx.fillStyle = base;
@@ -1923,6 +1877,345 @@ document.addEventListener('DOMContentLoaded', () => {
         updateThreeTexture();
     }
 
+    // ---- HELMET ASSET ----
+    function drawHelmetAsset(cx, cy, base, acc, glowCol, style) {
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+        const w = pixelated ? 70 : Math.round(92 * S);
+        const h = pixelated ? 70 : Math.round(92 * S);
+
+        ctx.save();
+        if (realistic) {
+            drawDropShadow(cx, cy + h * 0.45, w * 0.45, h * 0.15, 0.3);
+            
+            // Helmet dome
+            const domeGrad = ctx.createLinearGradient(cx - w/2, cy - h/2, cx + w/2, cy + h/2);
+            domeGrad.addColorStop(0, '#f8fafc');
+            domeGrad.addColorStop(0.3, acc);
+            domeGrad.addColorStop(0.7, adjustBrightness(acc, -35));
+            domeGrad.addColorStop(1, '#0f172a');
+            ctx.fillStyle = domeGrad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, w * 0.48, Math.PI, 0);
+            ctx.lineTo(cx + w * 0.48, cy + h * 0.2);
+            ctx.lineTo(cx - w * 0.48, cy + h * 0.2);
+            ctx.closePath();
+            ctx.fill();
+
+            // Visor / Mask
+            const visGrad = ctx.createLinearGradient(cx - w/3, cy, cx + w/3, cy);
+            visGrad.addColorStop(0, adjustBrightness(base, -40));
+            visGrad.addColorStop(0.5, base);
+            visGrad.addColorStop(1, adjustBrightness(base, -40));
+            ctx.fillStyle = visGrad;
+            ctx.beginPath();
+            ctx.roundRect(cx - w * 0.35, cy - h * 0.05, w * 0.7, h * 0.32, 4);
+            ctx.fill();
+
+            // Visor slit glow
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = Math.round(3 * S);
+            ctx.shadowColor = base;
+            ctx.shadowBlur = Math.round(15 * S);
+            ctx.beginPath();
+            ctx.moveTo(cx - w * 0.25, cy + h * 0.08);
+            ctx.lineTo(cx + w * 0.25, cy + h * 0.08);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Plume / Feather crest
+            const plumeG = ctx.createRadialGradient(cx, cy - h * 0.6, 5, cx, cy - h * 0.4, h * 0.4);
+            plumeG.addColorStop(0, '#fff');
+            plumeG.addColorStop(0.5, base);
+            plumeG.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = plumeG;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - h * 0.45);
+            ctx.quadraticCurveTo(cx - w * 0.25, cy - h * 0.75, cx - w * 0.1, cy - h * 0.9);
+            ctx.quadraticCurveTo(cx, cy - h * 0.7, cx, cy - h * 0.45);
+            ctx.fill();
+        } else {
+            ctx.fillStyle = acc;
+            ctx.beginPath();
+            ctx.arc(cx, cy, w * 0.48, Math.PI, 0);
+            ctx.lineTo(cx + w * 0.48, cy + h * 0.2);
+            ctx.lineTo(cx - w * 0.48, cy + h * 0.2);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = base;
+            ctx.fillRect(cx - w * 0.35, cy - h * 0.05, w * 0.7, h * 0.25);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(cx - w * 0.25, cy + h * 0.02, w * 0.5, pixelated ? 3 : Math.round(4 * S));
+        }
+        ctx.restore();
+        updateThreeTexture();
+    }
+
+    // ---- RING ASSET ----
+    function drawRingAsset(cx, cy, base, acc, glowCol, style) {
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+        const r = pixelated ? 45 : Math.round(62 * S);
+
+        ctx.save();
+        if (realistic) {
+            drawDropShadow(cx, cy + r * 0.7, r * 0.6, r * 0.2, 0.25);
+
+            // Ring band (Gold/Steel Torus aspect)
+            const bandG = ctx.createRadialGradient(cx, cy, r * 0.4, cx, cy, r * 0.7);
+            bandG.addColorStop(0, 'rgba(0,0,0,0)');
+            bandG.addColorStop(0.65, adjustBrightness(acc, -30));
+            bandG.addColorStop(0.85, acc);
+            bandG.addColorStop(0.92, '#ffffff');
+            bandG.addColorStop(1, adjustBrightness(acc, -40));
+            ctx.fillStyle = bandG;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Gem setting / crown
+            const gemR = Math.round(18 * S);
+            const gemY = cy - r * 0.6;
+            const gemG = ctx.createRadialGradient(gemX = cx - gemR * 0.3, gemY - gemR * 0.3, 1, cx, gemY, gemR);
+            gemG.addColorStop(0, '#ffffff');
+            gemG.addColorStop(0.3, base);
+            gemG.addColorStop(0.8, adjustBrightness(base, -40));
+            gemG.addColorStop(1, '#000000');
+            
+            ctx.save();
+            ctx.shadowColor = base;
+            ctx.shadowBlur = Math.round(20 * S);
+            ctx.fillStyle = gemG;
+            ctx.beginPath();
+            ctx.arc(cx, gemY, gemR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            drawSpecular(cx - gemR * 0.25, gemY - gemR * 0.25, gemR * 0.5, 0.85);
+        } else {
+            ctx.strokeStyle = acc;
+            ctx.lineWidth = pixelated ? 8 : Math.round(12 * S);
+            ctx.beginPath();
+            ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = base;
+            ctx.beginPath();
+            ctx.arc(cx, cy - r * 0.5, pixelated ? 10 : Math.round(15 * S), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+        updateThreeTexture();
+    }
+
+    // ---- STAFF / WAND ASSET ----
+    function drawStaffAsset(cx, cy, base, acc, glowCol, style) {
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+        const len = canvas.height * 0.65;
+        const thick = pixelated ? 4 : Math.round(6 * S);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(-Math.PI / 4); // traditional angle
+        ctx.translate(-cx, -cy);
+
+        if (realistic) {
+            // Wood Shaft
+            const shaftG = ctx.createLinearGradient(cx - thick, cy - len/2, cx + thick, cy + len/2);
+            shaftG.addColorStop(0, '#5c2d12');
+            shaftG.addColorStop(0.5, '#b45309');
+            shaftG.addColorStop(1, '#5c2d12');
+            ctx.fillStyle = shaftG;
+            ctx.fillRect(cx - thick/2, cy - len/2, thick, len);
+
+            // Specular highlight on staff shaft
+            ctx.fillStyle = 'rgba(255,255,255,0.12)';
+            ctx.fillRect(cx - thick/2, cy - len/2, Math.max(1, thick * 0.25), len);
+
+            // Metallic bindings
+            ctx.fillStyle = acc;
+            ctx.fillRect(cx - thick * 0.8, cy - len * 0.3, thick * 1.6, Math.round(8 * S));
+            ctx.fillRect(cx - thick * 0.8, cy + len * 0.3, thick * 1.6, Math.round(8 * S));
+
+            // Floating Magic Crystal Gem at top
+            const cryR = Math.round(18 * S);
+            const cryY = cy - len / 2 - cryR * 0.9;
+            
+            drawGlowHalo(cx, cryY, cryR, glowCol, 3);
+
+            const cryG = ctx.createRadialGradient(cx - cryR * 0.3, cryY - cryR * 0.3, 1, cx, cryY, cryR);
+            cryG.addColorStop(0, '#ffffff');
+            cryG.addColorStop(0.3, base);
+            cryG.addColorStop(0.8, adjustBrightness(base, -40));
+            cryG.addColorStop(1, '#000');
+            ctx.fillStyle = cryG;
+            ctx.beginPath();
+            ctx.moveTo(cx, cryY - cryR);
+            ctx.lineTo(cx + cryR * 0.7, cryY);
+            ctx.lineTo(cx, cryY + cryR);
+            ctx.lineTo(cx - cryR * 0.7, cryY);
+            ctx.closePath();
+            ctx.fill();
+            drawSpecular(cx - cryR * 0.2, cryY - cryR * 0.2, cryR * 0.45, 0.8);
+        } else {
+            ctx.fillStyle = '#78350f';
+            ctx.fillRect(cx - thick/2, cy - len/2, thick, len);
+
+            ctx.fillStyle = base;
+            ctx.beginPath();
+            ctx.arc(cx, cy - len/2 - Math.round(8 * S), Math.round(12 * S), 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = acc;
+            ctx.fillRect(cx - thick, cy - len * 0.3, thick * 2, Math.round(6 * S));
+        }
+        ctx.restore();
+        updateThreeTexture();
+    }
+
+    // ---- KEY ASSET ----
+    function drawKeyAsset(cx, cy, base, acc, glowCol, style) {
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+        const len = canvas.height * 0.5;
+        const shaftW = pixelated ? 4 : Math.round(6 * S);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(-Math.PI / 4);
+        ctx.translate(-cx, -cy);
+
+        if (realistic) {
+            // Gold base color
+            const keyGrad = ctx.createLinearGradient(cx - shaftW, cy - len/2, cx + shaftW, cy + len/2);
+            keyGrad.addColorStop(0, '#fbbf24');
+            keyGrad.addColorStop(0.5, '#d97706');
+            keyGrad.addColorStop(1, '#78350f');
+
+            // Key handle (bow)
+            const handleR = Math.round(20 * S);
+            const handleY = cy + len / 2 - handleR;
+            ctx.strokeStyle = keyGrad;
+            ctx.lineWidth = Math.round(7 * S);
+            ctx.beginPath();
+            ctx.arc(cx, handleY, handleR, 0, Math.PI * 2);
+            ctx.stroke();
+            // spec
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(cx - handleR * 0.2, handleY - handleR * 0.2, handleR, Math.PI * 0.9, Math.PI * 1.4);
+            ctx.stroke();
+
+            // Key shaft
+            ctx.fillStyle = keyGrad;
+            ctx.fillRect(cx - shaftW/2, cy - len/2 + handleR, shaftW, len - handleR * 1.5);
+
+            // Key bit (teeth)
+            const bitW = Math.round(15 * S);
+            const bitH = Math.round(22 * S);
+            const bitY = cy - len/2 + handleR + Math.round(4 * S);
+            ctx.fillRect(cx - shaftW/2 - bitW, bitY, bitW, bitH);
+            
+            // Teeth cuts
+            ctx.fillStyle = '#080b13'; // screen bg compositing
+            ctx.fillRect(cx - shaftW/2 - bitW + Math.round(3 * S), bitY + Math.round(6 * S), Math.round(6 * S), Math.round(5 * S));
+            ctx.fillRect(cx - shaftW/2 - bitW + Math.round(9 * S), bitY + Math.round(15 * S), Math.round(6 * S), Math.round(5 * S));
+        } else {
+            ctx.fillStyle = acc;
+            ctx.fillRect(cx - shaftW/2, cy - len/2, shaftW, len * 0.8);
+            
+            // Handle loop
+            ctx.strokeStyle = acc;
+            ctx.lineWidth = pixelated ? 4 : Math.round(6 * S);
+            ctx.beginPath();
+            ctx.arc(cx, cy + len * 0.3, pixelated ? 12 : Math.round(16 * S), 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Key bit
+            ctx.fillRect(cx - shaftW/2 - Math.round(12 * S), cy - len/2 + Math.round(5 * S), Math.round(12 * S), Math.round(16 * S));
+        }
+        ctx.restore();
+        updateThreeTexture();
+    }
+
+    // ---- SCROLL / BOOK ASSET ----
+    function drawScrollAsset(cx, cy, base, acc, glowCol, style) {
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+        const w = pixelated ? 80 : Math.round(110 * S);
+        const h = pixelated ? 55 : Math.round(76 * S);
+
+        ctx.save();
+        if (realistic) {
+            drawDropShadow(cx, cy + h * 0.45, w * 0.45, h * 0.15, 0.25);
+
+            // Aged parchment paper base
+            const papG = ctx.createLinearGradient(cx - w/2, cy, cx + w/2, cy);
+            papG.addColorStop(0, '#d97706'); // scroll ends
+            papG.addColorStop(0.12, '#fef3c7');
+            papG.addColorStop(0.5, '#fefbeb');
+            papG.addColorStop(0.88, '#fef3c7');
+            papG.addColorStop(1, '#d97706');
+            ctx.fillStyle = papG;
+            ctx.beginPath();
+            ctx.roundRect(cx - w * 0.44, cy - h * 0.4, w * 0.88, h * 0.8, 3);
+            ctx.fill();
+
+            // Wooden handles (rolls at the ends)
+            const handleW = Math.round(8 * S);
+            const handleH = h + Math.round(16 * S);
+            const woodG = ctx.createLinearGradient(cx, cy - handleH/2, cx, cy + handleH/2);
+            woodG.addColorStop(0, '#78350f');
+            woodG.addColorStop(0.5, '#b45309');
+            woodG.addColorStop(1, '#78350f');
+            ctx.fillStyle = woodG;
+            ctx.beginPath();
+            ctx.roundRect(cx - w * 0.47, cy - handleH/2, handleW, handleH, 2);
+            ctx.roundRect(cx + w * 0.47 - handleW, cy - handleH/2, handleW, handleH, 2);
+            ctx.fill();
+
+            // Ribbon wrapping the scroll
+            ctx.fillStyle = base;
+            ctx.fillRect(cx - Math.round(4 * S), cy - h * 0.4, Math.round(8 * S), h * 0.8);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(cx - Math.round(4 * S), cy - h * 0.4, Math.round(8 * S), h * 0.8);
+
+            // Glowing magic runes on scroll surface
+            ctx.strokeStyle = glowCol;
+            ctx.lineWidth = Math.round(2 * S);
+            ctx.shadowColor = glowCol;
+            ctx.shadowBlur = Math.round(10 * S);
+            ctx.beginPath();
+            ctx.moveTo(cx - w * 0.25, cy - h * 0.1);
+            ctx.lineTo(cx - w * 0.12, cy - h * 0.18);
+            ctx.moveTo(cx + w * 0.12, cy + h * 0.1);
+            ctx.lineTo(cx + w * 0.25, cy + h * 0.02);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        } else {
+            ctx.fillStyle = '#fef3c7';
+            ctx.fillRect(cx - w*0.4, cy - h*0.4, w*0.8, h*0.8);
+
+            ctx.fillStyle = '#78350f';
+            ctx.fillRect(cx - w*0.45, cy - h*0.5, Math.round(8 * S), h);
+            ctx.fillRect(cx + w*0.37, cy - h*0.5, Math.round(8 * S), h);
+
+            ctx.fillStyle = base;
+            ctx.fillRect(cx - Math.round(5 * S), cy - h*0.4, Math.round(10 * S), h*0.8);
+        }
+        ctx.restore();
+        updateThreeTexture();
+    }
+
     // Color brightness helper for canvas draw
     function adjustBrightness(hex, percent) {
         let R = parseInt(hex.substring(1, 3), 16);
@@ -2343,6 +2636,77 @@ document.addEventListener('DOMContentLoaded', () => {
             const lock = new THREE.Mesh(lockGeo, goldMat);
             lock.position.set(0, 0.1, 0.38);
             group.add(lock);
+        }
+        else if (prompt.includes('casco') || prompt.includes('helmet') || prompt.includes('yelmo')) {
+            // --- 3D Helmet ---
+            const domeGeo = new THREE.SphereGeometry(0.48, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+            const dome = new THREE.Mesh(domeGeo, steelMat);
+            dome.position.y = 0.15;
+            group.add(dome);
+
+            const visGeo = new THREE.BoxGeometry(0.55, 0.18, 0.4);
+            const visor = new THREE.Mesh(visGeo, bladeMat);
+            visor.position.set(0, 0.22, 0.28);
+            group.add(visor);
+        }
+        else if (prompt.includes('anillo') || prompt.includes('ring')) {
+            // --- 3D Ring ---
+            const ringGeo = new THREE.TorusGeometry(0.35, 0.08, 12, 48);
+            const ringMesh = new THREE.Mesh(ringGeo, goldMat);
+            ringMesh.rotation.x = Math.PI / 2;
+            ringMesh.position.y = 0.1;
+            group.add(ringMesh);
+
+            const gemGeo = new THREE.OctahedronGeometry(0.12, 0);
+            const gemMesh = new THREE.Mesh(gemGeo, bladeMat);
+            gemMesh.position.set(0, 0.44, 0);
+            group.add(gemMesh);
+        }
+        else if (prompt.includes('baston') || prompt.includes('staff') || prompt.includes('varita') || prompt.includes('wand')) {
+            // --- 3D Staff ---
+            const shaftGeo = new THREE.CylinderGeometry(0.025, 0.025, 1.4, 12);
+            const shaft = new THREE.Mesh(shaftGeo, woodMat);
+            shaft.position.y = 0.1;
+            group.add(shaft);
+
+            const headGeo = new THREE.SphereGeometry(0.15, 16, 16);
+            const head = new THREE.Mesh(headGeo, bladeMat);
+            head.position.y = 0.85;
+            group.add(head);
+        }
+        else if (prompt.includes('llave') || prompt.includes('key')) {
+            // --- 3D Key ---
+            const loopGeo = new THREE.TorusGeometry(0.16, 0.04, 8, 24);
+            const loop = new THREE.Mesh(loopGeo, goldMat);
+            loop.position.y = -0.4;
+            group.add(loop);
+
+            const shaftGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 12);
+            const shaft = new THREE.Mesh(shaftGeo, goldMat);
+            shaft.position.y = 0.05;
+            group.add(shaft);
+
+            const bitGeo = new THREE.BoxGeometry(0.15, 0.22, 0.04);
+            const bit = new THREE.Mesh(bitGeo, goldMat);
+            bit.position.set(-0.1, 0.35, 0);
+            group.add(bit);
+        }
+        else if (prompt.includes('pergamino') || prompt.includes('scroll') || prompt.includes('libro') || prompt.includes('book')) {
+            // --- 3D Scroll ---
+            const sheetGeo = new THREE.BoxGeometry(0.8, 0.02, 0.55);
+            const sheet = new THREE.Mesh(sheetGeo, materials.customMaterial);
+            sheet.position.y = 0.1;
+            group.add(sheet);
+
+            const rollGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.6, 16);
+            const rollL = new THREE.Mesh(rollGeo, woodMat);
+            rollL.rotation.x = Math.PI / 2;
+            rollL.position.set(-0.43, 0.1, 0);
+            const rollR = new THREE.Mesh(rollGeo, woodMat);
+            rollR.rotation.x = Math.PI / 2;
+            rollR.position.set(0.43, 0.1, 0);
+            group.add(rollL);
+            group.add(rollR);
         }
         else {
             // --- 3D Gem / Default Orb ---

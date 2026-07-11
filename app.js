@@ -991,33 +991,104 @@ document.addEventListener('DOMContentLoaded', () => {
             baseColor = '#65a30d'; accentColor = '#d9f99d'; glowColor = 'rgba(101,163,13,0.6)';
         }
 
-        // ---- Draw depending on asset category ----
-        if (lp.includes('espada') || lp.includes('sword') || lp.includes('katana') || lp.includes('sable') || lp.includes('daga') || lp.includes('dagger')) {
+
+        // ---- Helper: detect asset family from prompt ----
+        function matchesAny(keys) { return keys.some(k => lp.includes(k)); }
+
+        // Characters / humanoids
+        const isWarrior   = matchesAny(['guerrero','warrior','knight','caballero','fighter','soldado','paladin','paladin','barbarian','barbaro']);
+        const isMage      = matchesAny(['mago','mage','wizard','hechicero','brujo','sorcerer','warlock','witch']);
+        const isRogue     = matchesAny(['rogue','ladron','thief','asesino','assassin','pirate','pirata','ninja','ranger','arquero']);
+        const isHealer    = matchesAny(['curandero','healer','priest','sacerdote','clerigo','cleric','monk','monje']);
+        const isCharacter = isWarrior || isMage || isRogue || isHealer ||
+                            matchesAny(['personaje','character','hero','heroe','heroine','heroina','protagonista','player','jugador','avatar','npc']);
+
+        // Creatures & monsters
+        const isSlime     = matchesAny(['slime','limo','gelatina','blob','ameba']);
+        const isGoblin    = matchesAny(['goblin','kobold','gnome','gnomo','duende']);
+        const isSkeleton  = matchesAny(['skeleton','esqueleto','undead','muerto','zombie','lich','liche']);
+        const isDragon    = matchesAny(['dragon','drake','wyrm','serpiente alada','dragón']);
+        const isOrc       = matchesAny(['orc','orco','ogro','ogre','troll']);
+        const isGhost     = matchesAny(['ghost','fantasma','espiritu','spirit','wraith','banshee','phantom']);
+        const isSpider    = matchesAny(['spider','araña','aracnido','scorpion','escorpion']);
+        const isBat       = matchesAny(['bat','murcielago','vampiro','vampire']);
+        const isWolf      = matchesAny(['wolf','lobo','werewolf','licantro','lycanthrope','dog','perro','beast']);
+        const isGolem     = matchesAny(['golem','construct','elemental','robot','automaton','automata']);
+        const isBoss      = matchesAny(['jefe','boss','final boss','raid','demonio','demon','diablo','devil','titan','gigante','giant']);
+        const isCreature  = isSlime || isGoblin || isSkeleton || isDragon || isOrc ||
+                            isGhost || isSpider || isBat || isWolf || isGolem || isBoss ||
+                            matchesAny(['monstruo','monster','criatura','creature','enemy','enemigo','bestia','beast','evil','maligno']);
+
+        // Weapons & items
+        const isSword     = matchesAny(['espada','sword','katana','sable','daga','dagger','cuchillo','knife','hacha','axe','lanza','spear','pica','pike','mangual','flail']);
+        const isBow       = matchesAny(['arco','bow','flecha','arrow','ballesta','crossbow','sling','honda']);
+        const isStaff     = matchesAny(['baston','staff','varita','wand','cetro','scepter','totem']);
+        const isShield    = matchesAny(['escudo','shield','armadura','armor']);
+        const isHelmet    = matchesAny(['casco','helmet','yelmo','coraza','sombrero','hat']);
+        const isPotion    = matchesAny(['pocion','potion','frasco','botella','elixir','brebaje','flask']);
+        const isChest     = matchesAny(['cofre','chest','caja','tesoro','treasure','baul']);
+        const isRing      = matchesAny(['anillo','ring','alianza','joya','gem','gema','amulet','amuleto']);
+        const isKey       = matchesAny(['llave','key']);
+        const isScroll    = matchesAny(['pergamino','scroll','libro','book','tomo','grimoire']);
+        const isCoin      = matchesAny(['moneda','coin','oro','gold','dinero','money','bolsa','bag']);
+        const isPoison    = matchesAny(['veneno','poison','acido','acid','flask']);
+        const isTree      = matchesAny(['arbol','tree','planta','plant','flor','flower','hongo','mushroom','seta']);
+        const isBuilding  = matchesAny(['torre','tower','castillo','castle','edificio','building','puerta','door','muralla','wall']);
+        const isTile      = matchesAny(['terreno','bloque','isométrico','isometric','tile','suelo','ground','cesped','grass','nieve','snow','lava','desierto']);
+
+        // ---- Draw depending on detected category ----
+        if (isCharacter) {
+            if      (isWarrior) drawCharacterWarrior(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isMage)    drawCharacterMage(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isRogue)   drawCharacterRogue(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isHealer)  drawCharacterHealer(cx, cy, baseColor, accentColor, glowColor, style);
+            else                drawCharacterWarrior(cx, cy, baseColor, accentColor, glowColor, style);
+        } else if (isCreature) {
+            if      (isSlime)    drawCreatureSlime(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isGoblin)   drawCreatureGoblin(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isSkeleton) drawCreatureSkeleton(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isDragon)   drawCreatureDragon(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isOrc)      drawCreatureOrc(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isGhost)    drawCreatureGhost(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isSpider)   drawCreatureSpider(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isBat)      drawCreatureBat(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isWolf)     drawCreatureWolf(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isGolem)    drawCreatureGolem(cx, cy, baseColor, accentColor, glowColor, style);
+            else if (isBoss)     drawCreatureBoss(cx, cy, baseColor, accentColor, glowColor, style);
+            else                 drawCreatureGoblin(cx, cy, baseColor, accentColor, glowColor, style);
+        } else if (isSword) {
             drawSwordAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (lp.includes('cofre') || lp.includes('chest') || lp.includes('caja') || lp.includes('tesoro')) {
+        } else if (isChest) {
             drawChestAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (lp.includes('escudo') || lp.includes('shield') || lp.includes('armadura') || lp.includes('armor')) {
+        } else if (isShield) {
             drawShieldAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (lp.includes('pocion') || lp.includes('potion') || lp.includes('frasco') || lp.includes('botella') || lp.includes('elixir')) {
+        } else if (isPotion || isPoison) {
             drawPotionAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (lp.includes('terreno') || lp.includes('bloque') || lp.includes('isométrico') || lp.includes('isometric') || lp.includes('tile') || state.currentWorkspace === '2.5d') {
+        } else if (isTile) {
             drawIsometricBlockAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (lp.includes('arco') || lp.includes('bow') || lp.includes('flecha') || lp.includes('arrow')) {
+        } else if (isBow) {
             drawBowAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (lp.includes('casco') || lp.includes('helmet') || lp.includes('yelmo') || lp.includes('coraza')) {
+        } else if (isHelmet) {
             drawHelmetAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (lp.includes('anillo') || lp.includes('ring') || lp.includes('alianza') || lp.includes('joya')) {
+        } else if (isRing) {
             drawRingAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (lp.includes('baston') || lp.includes('staff') || lp.includes('varita') || lp.includes('wand') || lp.includes('cetro')) {
+        } else if (isStaff) {
             drawStaffAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (lp.includes('llave') || lp.includes('key')) {
+        } else if (isKey) {
             drawKeyAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (lp.includes('pergamino') || lp.includes('scroll') || lp.includes('libro') || lp.includes('book') || lp.includes('tomo')) {
+        } else if (isScroll) {
             drawScrollAsset(cx, cy, baseColor, accentColor, glowColor, style);
+        } else if (isCoin) {
+            drawCoinAsset(cx, cy, baseColor, accentColor, glowColor, style);
+        } else if (isTree) {
+            drawTreeAsset(cx, cy, baseColor, accentColor, glowColor, style);
+        } else if (isBuilding) {
+            drawBuildingAsset(cx, cy, baseColor, accentColor, glowColor, style);
         } else {
-            // Default: Magic Orb / Gem
+            // Default: Magic Orb
             drawGemAsset(cx, cy, baseColor, accentColor, glowColor, style);
         }
+
         
         if (style === 'realistic' || style === 'vector' || style === 'cartoon') {
             threeMeshSelect.value = 'mesh_3d';
@@ -2968,5 +3039,1415 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Launch ---
+
+    // ============================================================
+    // CHARACTER DRAWING ENGINE
+    // ============================================================
+
+    /** Core humanoid body builder used by all character types */
+    function drawHumanoidBase(cx, cy, skin, bodyCol, legCol, S, pixelated, opts = {}) {
+        const {
+            headR    = 28 * S,
+            bodyH    = 56 * S,
+            bodyW    = 32 * S,
+            legH     = 40 * S,
+            armW     = 12 * S,
+            armH     = 44 * S,
+        } = opts;
+
+        const torsoTop = cy - headR - bodyH * 0.1;
+        const torsoBot = torsoTop + bodyH;
+
+        // Drop shadow
+        drawDropShadow(cx, cy + legH + headR * 0.6, bodyW * 0.9, bodyW * 0.2, 0.4);
+
+        // — LEGS —
+        const legW = bodyW * 0.38;
+        ctx.fillStyle = legCol;
+        // Left leg
+        ctx.beginPath();
+        ctx.roundRect(cx - legW - 2 * S, torsoBot - 4 * S, legW, legH, pixelated ? 0 : 4 * S);
+        ctx.fill();
+        // Right leg
+        ctx.beginPath();
+        ctx.roundRect(cx + 2 * S, torsoBot - 4 * S, legW, legH, pixelated ? 0 : 4 * S);
+        ctx.fill();
+
+        // Leg highlight
+        const legHL = ctx.createLinearGradient(cx - legW - 2*S, torsoBot, cx, torsoBot);
+        legHL.addColorStop(0, 'rgba(255,255,255,0.12)');
+        legHL.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = legHL;
+        ctx.beginPath();
+        ctx.roundRect(cx - legW - 2*S, torsoBot - 4*S, legW, legH, pixelated ? 0 : 4*S);
+        ctx.fill();
+
+        // — TORSO —
+        const torsoGrad = ctx.createLinearGradient(cx - bodyW/2, torsoTop, cx + bodyW/2, torsoBot);
+        torsoGrad.addColorStop(0,   lightenColor(bodyCol, 35));
+        torsoGrad.addColorStop(0.5, bodyCol);
+        torsoGrad.addColorStop(1,   darkenColor(bodyCol, 35));
+        ctx.fillStyle = torsoGrad;
+        ctx.beginPath();
+        ctx.roundRect(cx - bodyW/2, torsoTop, bodyW, bodyH, pixelated ? 0 : [8*S, 8*S, 4*S, 4*S]);
+        ctx.fill();
+
+        // Torso chest highlight
+        if (!pixelated) {
+            const chestHL = ctx.createRadialGradient(cx, torsoTop + bodyH*0.25, 0, cx, torsoTop + bodyH*0.25, bodyW*0.5);
+            chestHL.addColorStop(0, 'rgba(255,255,255,0.18)');
+            chestHL.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = chestHL;
+            ctx.beginPath();
+            ctx.roundRect(cx - bodyW/2, torsoTop, bodyW, bodyH, 8*S);
+            ctx.fill();
+        }
+
+        // — ARMS —
+        ctx.fillStyle = bodyCol;
+        // Left arm
+        ctx.beginPath();
+        ctx.roundRect(cx - bodyW/2 - armW + 2*S, torsoTop + 4*S, armW, armH, pixelated ? 0 : 6*S);
+        ctx.fill();
+        // Right arm
+        ctx.beginPath();
+        ctx.roundRect(cx + bodyW/2 - 2*S, torsoTop + 4*S, armW, armH, pixelated ? 0 : 6*S);
+        ctx.fill();
+
+        // — HEAD —
+        const headGrad = ctx.createRadialGradient(cx - headR*0.2, torsoTop - headR*0.8, headR*0.1, cx, torsoTop - headR*0.5, headR);
+        headGrad.addColorStop(0, lightenColor(skin, 20));
+        headGrad.addColorStop(0.7, skin);
+        headGrad.addColorStop(1, darkenColor(skin, 20));
+        ctx.fillStyle = headGrad;
+        ctx.beginPath();
+        ctx.ellipse(cx, torsoTop - headR * 0.5, headR, headR, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eyes
+        const eyeY = torsoTop - headR * 0.4;
+        const eyeSpacing = headR * 0.4;
+        const eyeR = headR * 0.14;
+        ctx.fillStyle = '#1a0a0a';
+        ctx.beginPath(); ctx.arc(cx - eyeSpacing, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + eyeSpacing, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
+        // Eye shine
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath(); ctx.arc(cx - eyeSpacing + eyeR*0.4, eyeY - eyeR*0.3, eyeR*0.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + eyeSpacing + eyeR*0.4, eyeY - eyeR*0.3, eyeR*0.4, 0, Math.PI * 2); ctx.fill();
+
+        // Mouth
+        ctx.strokeStyle = darkenColor(skin, 30);
+        ctx.lineWidth = 1.5 * S;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(cx, eyeY + headR*0.35, headR*0.2, 0.1, Math.PI - 0.1);
+        ctx.stroke();
+
+        return { torsoTop, torsoBot, headR, bodyW, armW };
+    }
+
+    function lightenColor(hex, amount) {
+        const r = Math.min(255, parseInt(hex.slice(1,3),16) + amount);
+        const g = Math.min(255, parseInt(hex.slice(3,5),16) + amount);
+        const b = Math.min(255, parseInt(hex.slice(5,7),16) + amount);
+        return `rgb(${r},${g},${b})`;
+    }
+    function darkenColor(hex, amount) {
+        const r = Math.max(0, parseInt(hex.slice(1,3),16) - amount);
+        const g = Math.max(0, parseInt(hex.slice(3,5),16) - amount);
+        const b = Math.max(0, parseInt(hex.slice(5,7),16) - amount);
+        return `rgb(${r},${g},${b})`;
+    }
+
+    // ─── WARRIOR ───────────────────────────────────────────────────────────
+    function drawCharacterWarrior(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const px = style === 'pixel';
+
+        // Background glow aura
+        drawGlowHalo(cx, cy, 80*S, glow, 2);
+
+        const skin = '#e8b89a';
+        const armor = base;
+        const plate = acc;
+        const pants = darkenColor(base, 60);
+
+        // Draw base humanoid
+        const { torsoTop, torsoBot, headR, bodyW, armW } = drawHumanoidBase(cx, cy - 20*S, skin, armor, pants, S, px, {
+            bodyH: 58*S, bodyW: 36*S
+        });
+
+        // Shoulder plates (pauldrons)
+        const shoulderR = 14*S;
+        ctx.fillStyle = plate;
+        ctx.beginPath(); ctx.ellipse(cx - bodyW/2 - armW/2 + 2*S, torsoTop + 4*S, shoulderR, shoulderR*0.7, -0.3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx + bodyW/2 + armW/2 - 2*S, torsoTop + 4*S, shoulderR, shoulderR*0.7, 0.3, 0, Math.PI*2); ctx.fill();
+        // Shoulder edge
+        ctx.strokeStyle = lightenColor(plate, 30); ctx.lineWidth = 1.5*S;
+        ctx.beginPath(); ctx.ellipse(cx - bodyW/2 - armW/2 + 2*S, torsoTop + 4*S, shoulderR, shoulderR*0.7, -0.3, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(cx + bodyW/2 + armW/2 - 2*S, torsoTop + 4*S, shoulderR, shoulderR*0.7, 0.3, 0, Math.PI*2); ctx.stroke();
+
+        // Chest cross-plate
+        ctx.strokeStyle = lightenColor(armor, 40); ctx.lineWidth = 2*S;
+        ctx.beginPath(); ctx.moveTo(cx, torsoTop + 8*S); ctx.lineTo(cx, torsoBot - 8*S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - bodyW*0.3, torsoTop + bodyW*0.4); ctx.lineTo(cx + bodyW*0.3, torsoTop + bodyW*0.4); ctx.stroke();
+
+        // Belt
+        ctx.fillStyle = darkenColor(base, 80);
+        ctx.fillRect(cx - bodyW/2 - 1*S, torsoBot - 12*S, bodyW + 2*S, 8*S);
+        ctx.fillStyle = '#d4a017';
+        ctx.fillRect(cx - 5*S, torsoBot - 12*S, 10*S, 8*S);
+
+        // Helmet
+        const helmetCol = plate;
+        ctx.fillStyle = helmetCol;
+        ctx.beginPath();
+        ctx.ellipse(cx, torsoTop - headR*0.5 - headR*0.4, headR*1.15, headR*0.85, 0, Math.PI, 0);
+        ctx.fill();
+        // Visor slit
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(cx - headR*0.55, torsoTop - headR*0.6, headR*1.1, headR*0.22);
+        // Helmet highlight
+        drawSpecular(cx - headR*0.2, torsoTop - headR*1.1, headR*0.5, 0.35);
+        // Plume
+        ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 3*S; ctx.lineCap = 'round';
+        for (let i = -2; i <= 2; i++) {
+            ctx.beginPath();
+            ctx.moveTo(cx + i*4*S, torsoTop - headR*1.4);
+            ctx.quadraticCurveTo(cx + i*6*S - 4*S, torsoTop - headR*2.2, cx + i*8*S - 2*S, torsoTop - headR*1.8);
+            ctx.stroke();
+        }
+
+        // Sword in right hand
+        ctx.save();
+        ctx.translate(cx + bodyW/2 + armW + 6*S, torsoTop + 40*S);
+        ctx.rotate(-0.35);
+        // Blade
+        const bladeGrad = ctx.createLinearGradient(-4*S, 0, 4*S, -60*S);
+        bladeGrad.addColorStop(0, '#9ca3af'); bladeGrad.addColorStop(0.5, '#f3f4f6'); bladeGrad.addColorStop(1, '#d1d5db');
+        ctx.fillStyle = bladeGrad;
+        ctx.beginPath(); ctx.moveTo(-4*S, 0); ctx.lineTo(4*S, 0); ctx.lineTo(1*S, -62*S); ctx.lineTo(-1*S, -62*S); ctx.closePath(); ctx.fill();
+        // Guard
+        ctx.fillStyle = '#d4a017';
+        ctx.fillRect(-10*S, -6*S, 20*S, 4*S);
+        // Handle
+        ctx.fillStyle = '#7c3a00';
+        ctx.fillRect(-3*S, -4*S, 6*S, 18*S);
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    // ─── MAGE ──────────────────────────────────────────────────────────────
+    function drawCharacterMage(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const px = style === 'pixel';
+
+        drawGlowHalo(cx, cy, 90*S, glow, 3);
+
+        const skin = '#f0d0b0';
+        const robe = base;
+        const trim = acc;
+
+        // Draw base with wide robe
+        const { torsoTop, torsoBot, headR, bodyW } = drawHumanoidBase(cx, cy - 15*S, skin, robe, darkenColor(robe, 50), S, px, {
+            bodyH: 70*S, bodyW: 38*S, legH: 28*S
+        });
+
+        // Robe bottom flare
+        ctx.fillStyle = darkenColor(robe, 20);
+        ctx.beginPath();
+        ctx.moveTo(cx - bodyW/2 - 8*S, torsoBot - 4*S);
+        ctx.lineTo(cx - bodyW*0.8, torsoBot + 28*S);
+        ctx.lineTo(cx + bodyW*0.8, torsoBot + 28*S);
+        ctx.lineTo(cx + bodyW/2 + 8*S, torsoBot - 4*S);
+        ctx.closePath(); ctx.fill();
+
+        // Robe trim details
+        ctx.strokeStyle = trim; ctx.lineWidth = 3*S;
+        // Collar trim
+        ctx.beginPath(); ctx.arc(cx, torsoTop + 6*S, 10*S, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+        // Vertical trim lines
+        ctx.strokeStyle = lightenColor(trim, 20); ctx.lineWidth = 1.5*S;
+        ctx.beginPath(); ctx.moveTo(cx, torsoTop); ctx.lineTo(cx, torsoBot + 28*S); ctx.stroke();
+
+        // Glowing rune symbol on chest
+        ctx.fillStyle = glow.replace(/,\s*[\d.]+\)/, ', 0.8)');
+        ctx.font = `bold ${18*S}px serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('✦', cx, torsoTop + bodyW * 0.55);
+
+        // Pointed hat
+        ctx.fillStyle = robe;
+        ctx.beginPath();
+        ctx.moveTo(cx, torsoTop - headR * 2.5);
+        ctx.lineTo(cx - headR * 1.2, torsoTop - headR * 0.3);
+        ctx.lineTo(cx + headR * 1.2, torsoTop - headR * 0.3);
+        ctx.closePath(); ctx.fill();
+        // Hat brim
+        ctx.fillStyle = darkenColor(robe, 30);
+        ctx.beginPath(); ctx.ellipse(cx, torsoTop - headR * 0.3, headR * 1.5, 5*S, 0, 0, Math.PI*2); ctx.fill();
+        // Hat band
+        ctx.strokeStyle = trim; ctx.lineWidth = 3*S;
+        ctx.beginPath(); ctx.moveTo(cx - headR * 1.0, torsoTop - headR * 0.8); ctx.lineTo(cx + headR * 1.0, torsoTop - headR * 0.8); ctx.stroke();
+
+        // Staff in left hand
+        ctx.save();
+        ctx.translate(cx - bodyW/2 - 14*S, torsoTop - 10*S);
+        // Staff pole
+        const staffGrad = ctx.createLinearGradient(-3*S, 0, 3*S, 100*S);
+        staffGrad.addColorStop(0, '#6b3a00'); staffGrad.addColorStop(0.5, '#a05a00'); staffGrad.addColorStop(1, '#6b3a00');
+        ctx.fillStyle = staffGrad;
+        ctx.fillRect(-3*S, 0, 6*S, 100*S);
+        // Orb on top
+        drawGlowHalo(0, -12*S, 18*S, glow, 2);
+        const orbG = ctx.createRadialGradient(-4*S, -16*S, 2*S, 0, -12*S, 14*S);
+        orbG.addColorStop(0, 'white'); orbG.addColorStop(0.3, lightenColor(base, 40)); orbG.addColorStop(1, base);
+        ctx.fillStyle = orbG;
+        ctx.beginPath(); ctx.arc(0, -12*S, 13*S, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    // ─── ROGUE ─────────────────────────────────────────────────────────────
+    function drawCharacterRogue(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const px = style === 'pixel';
+
+        const skin = '#c8966a';
+        const leather = '#3d2b1f';
+        const cloak = base;
+
+        const { torsoTop, torsoBot, headR, bodyW, armW } = drawHumanoidBase(cx, cy - 20*S, skin, leather, '#2a1a0f', S, px, {
+            bodyH: 55*S, bodyW: 30*S
+        });
+
+        // Hood / mask
+        ctx.fillStyle = cloak;
+        ctx.beginPath();
+        ctx.ellipse(cx, torsoTop - headR*0.55, headR*1.1, headR*1.05, 0, 0, Math.PI*2);
+        ctx.fill();
+        // Face visible (lower half only)
+        ctx.fillStyle = skin;
+        ctx.beginPath();
+        ctx.ellipse(cx, torsoTop - headR*0.3, headR*0.75, headR*0.55, 0, 0, Math.PI);
+        ctx.fill();
+        // Mask slit
+        ctx.fillStyle = '#000';
+        ctx.fillRect(cx - headR*0.55, torsoTop - headR*0.72, headR*1.1, headR*0.25);
+
+        // Cloak behind
+        ctx.fillStyle = darkenColor(cloak, 30);
+        ctx.beginPath();
+        ctx.moveTo(cx - bodyW*0.8, torsoTop + 8*S);
+        ctx.quadraticCurveTo(cx - bodyW*1.4, torsoBot + 20*S, cx - bodyW*0.5, torsoBot + 35*S);
+        ctx.lineTo(cx + bodyW*0.5, torsoBot + 35*S);
+        ctx.quadraticCurveTo(cx + bodyW*1.4, torsoBot + 20*S, cx + bodyW*0.8, torsoTop + 8*S);
+        ctx.fill();
+
+        // Two daggers (crossed) on back
+        ctx.save();
+        ctx.translate(cx, torsoTop + 20*S);
+        // Dagger 1
+        ctx.save(); ctx.rotate(0.35);
+        ctx.fillStyle = '#9ca3af'; ctx.fillRect(-2*S, -30*S, 4*S, 30*S);
+        ctx.fillStyle = '#7c5c00'; ctx.fillRect(-3*S, 0, 6*S, 10*S);
+        ctx.restore();
+        // Dagger 2
+        ctx.save(); ctx.rotate(-0.35);
+        ctx.fillStyle = '#9ca3af'; ctx.fillRect(-2*S, -30*S, 4*S, 30*S);
+        ctx.fillStyle = '#7c5c00'; ctx.fillRect(-3*S, 0, 6*S, 10*S);
+        ctx.restore();
+        ctx.restore();
+
+        // Belt with pouches
+        ctx.fillStyle = '#4a3828'; ctx.fillRect(cx - bodyW/2 - 1*S, torsoBot - 10*S, bodyW + 2*S, 6*S);
+        ctx.fillStyle = '#3d2b1f'; ctx.fillRect(cx - 12*S, torsoBot - 11*S, 9*S, 8*S);
+        ctx.fillStyle = '#3d2b1f'; ctx.fillRect(cx + 3*S,  torsoBot - 11*S, 9*S, 8*S);
+
+        ctx.restore();
+    }
+
+    // ─── HEALER ────────────────────────────────────────────────────────────
+    function drawCharacterHealer(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const px = style === 'pixel';
+
+        drawGlowHalo(cx, cy, 85*S, 'rgba(200,255,200,0.4)', 2);
+
+        const skin = '#f5deb3';
+        const robe = '#f0f0f0';
+        const cross = base;
+
+        const { torsoTop, torsoBot, headR, bodyW } = drawHumanoidBase(cx, cy - 15*S, skin, robe, '#d0d0d0', S, px, {
+            bodyH: 68*S, bodyW: 36*S, legH: 25*S
+        });
+
+        // Cross symbol on chest
+        ctx.fillStyle = cross;
+        const cxc = cx, cyc = torsoTop + bodyW * 0.4;
+        ctx.fillRect(cxc - 3*S, cyc - 12*S, 6*S, 22*S);
+        ctx.fillRect(cxc - 10*S, cyc - 4*S, 20*S, 6*S);
+
+        // Gold halo
+        ctx.strokeStyle = '#fde68a'; ctx.lineWidth = 3*S;
+        ctx.setLineDash([4*S, 3*S]);
+        ctx.beginPath(); ctx.arc(cx, torsoTop - headR*1.1, headR*1.3, 0, Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Healing staff (scepter with cross)
+        ctx.save();
+        ctx.translate(cx + bodyW/2 + 10*S, torsoTop - 10*S);
+        ctx.fillStyle = '#d4a017'; ctx.fillRect(-3*S, 0, 6*S, 90*S);
+        ctx.fillRect(-10*S, 12*S, 20*S, 5*S);
+        // Glow on tip
+        drawGlowHalo(0, 0, 14*S, 'rgba(200,255,200,0.5)', 2);
+        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, 0, 8*S, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    // ============================================================
+    // CREATURE DRAWING ENGINE
+    // ============================================================
+
+    // ─── SLIME ─────────────────────────────────────────────────────────────
+    function drawCreatureSlime(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+
+        drawGlowHalo(cx, cy + 10*S, 75*S, glow, 3);
+        drawDropShadow(cx, cy + 55*S, 55*S, 15*S, 0.4);
+
+        // Main slime body (translucent blob)
+        const blobG = ctx.createRadialGradient(cx - 15*S, cy - 10*S, 5*S, cx, cy + 10*S, 60*S);
+        blobG.addColorStop(0, lightenColor(base, 60) + 'cc');
+        blobG.addColorStop(0.5, base + 'bb');
+        blobG.addColorStop(1, darkenColor(base, 40) + 'aa');
+        ctx.fillStyle = blobG;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + 15*S, 58*S, 48*S, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // Inner nucleus
+        const nucG = ctx.createRadialGradient(cx, cy + 10*S, 5*S, cx, cy + 10*S, 28*S);
+        nucG.addColorStop(0, lightenColor(base, 40) + 'aa');
+        nucG.addColorStop(1, 'transparent');
+        ctx.fillStyle = nucG;
+        ctx.beginPath(); ctx.ellipse(cx, cy + 10*S, 28*S, 22*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Drip on top
+        ctx.fillStyle = base + 'cc';
+        ctx.beginPath();
+        ctx.moveTo(cx - 8*S, cy - 30*S);
+        ctx.quadraticCurveTo(cx, cy - 48*S, cx + 8*S, cy - 30*S);
+        ctx.quadraticCurveTo(cx + 4*S, cy - 20*S, cx, cy - 33*S);
+        ctx.fill();
+
+        // Eyes (white + pupil)
+        const eyeY = cy + 2*S;
+        [-18*S, 18*S].forEach(ex => {
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.beginPath(); ctx.ellipse(cx + ex, eyeY, 10*S, 12*S, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#111';
+            ctx.beginPath(); ctx.ellipse(cx + ex + 2*S, eyeY + 1*S, 5*S, 7*S, 0.3, 0, Math.PI*2); ctx.fill();
+            // Shine
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.beginPath(); ctx.arc(cx + ex + 3*S, eyeY - 3*S, 2.5*S, 0, Math.PI*2); ctx.fill();
+        });
+
+        // Shine highlight on body
+        drawSpecular(cx - 15*S, cy - 10*S, 30*S, 0.3);
+
+        // Small bubbles inside
+        [[cx-20*S, cy+30*S,4*S],[cx+25*S,cy+25*S,3*S],[cx+5*S,cy+38*S,2.5*S]].forEach(([bx,by,br]) => {
+            ctx.strokeStyle = lightenColor(base,50)+'88'; ctx.lineWidth = 1.5*S;
+            ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI*2); ctx.stroke();
+        });
+        ctx.restore();
+    }
+
+    // ─── GOBLIN ────────────────────────────────────────────────────────────
+    function drawCreatureGoblin(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const px = style === 'pixel';
+
+        const skin = '#4ade80';
+        const leather = '#5c3d11';
+
+        drawDropShadow(cx, cy + 60*S, 40*S, 12*S, 0.4);
+
+        // Short legs
+        ctx.fillStyle = '#3a2508';
+        ctx.beginPath(); ctx.roundRect(cx - 18*S, cy + 22*S, 14*S, 34*S, px?0:4*S); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(cx + 4*S, cy + 22*S, 14*S, 34*S, px?0:4*S); ctx.fill();
+
+        // Tattered vest/body
+        const torsoG = ctx.createLinearGradient(cx-20*S, cy-10*S, cx+20*S, cy+30*S);
+        torsoG.addColorStop(0, leather); torsoG.addColorStop(1, darkenColor(leather, 30));
+        ctx.fillStyle = torsoG;
+        ctx.beginPath(); ctx.roundRect(cx - 20*S, cy - 12*S, 40*S, 36*S, px?0:6*S); ctx.fill();
+
+        // Arms (skinny, reaching forward)
+        ctx.fillStyle = skin;
+        // Left arm
+        ctx.beginPath(); ctx.roundRect(cx - 32*S, cy - 6*S, 13*S, 32*S, px?0:5*S); ctx.fill();
+        // Right arm
+        ctx.beginPath(); ctx.roundRect(cx + 19*S, cy - 6*S, 13*S, 32*S, px?0:5*S); ctx.fill();
+
+        // Clawed hands
+        [[-26*S, cy+26*S],[cx+25*S, cy+26*S]].forEach(([hx, hy]) => {
+            ctx.fillStyle = darkenColor(skin, 20);
+            for (let i = -1; i <= 1; i++) {
+                ctx.beginPath(); ctx.ellipse(hx + i*4*S, hy, 3*S, 6*S, i*0.2, 0, Math.PI*2); ctx.fill();
+            }
+        });
+
+        // Big goblin head
+        const headG = ctx.createRadialGradient(cx-8*S, cy-40*S, 4*S, cx, cy-28*S, 28*S);
+        headG.addColorStop(0, lightenColor(skin, 20)); headG.addColorStop(1, skin);
+        ctx.fillStyle = headG;
+        ctx.beginPath(); ctx.ellipse(cx, cy - 28*S, 26*S, 24*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Big ears
+        ctx.fillStyle = darkenColor(skin, 15);
+        ctx.beginPath(); ctx.ellipse(cx - 28*S, cy - 28*S, 10*S, 7*S, -0.4, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx + 28*S, cy - 28*S, 10*S, 7*S, 0.4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = lightenColor(skin, 15);
+        ctx.beginPath(); ctx.ellipse(cx - 28*S, cy - 28*S, 6*S, 4*S, -0.4, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx + 28*S, cy - 28*S, 6*S, 4*S, 0.4, 0, Math.PI*2); ctx.fill();
+
+        // Eyes (evil yellow)
+        [-10*S, 10*S].forEach(ex => {
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath(); ctx.ellipse(cx + ex, cy - 26*S, 7*S, 6*S, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.ellipse(cx + ex, cy - 26*S, 3*S, 5*S, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.beginPath(); ctx.arc(cx + ex + 2*S, cy - 28*S, 2*S, 0, Math.PI*2); ctx.fill();
+        });
+
+        // Nose
+        ctx.fillStyle = darkenColor(skin, 25);
+        ctx.beginPath(); ctx.ellipse(cx, cy - 18*S, 5*S, 4*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Grin with teeth
+        ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(cx, cy - 10*S, 10*S, 0.1, Math.PI - 0.1); ctx.fill();
+        ctx.fillStyle = '#f8f8f8';
+        for (let i = -2; i <= 2; i++) {
+            ctx.fillRect(cx + i*4*S - 2*S, cy - 20*S, 3*S, 6*S);
+        }
+
+        // Crude club weapon
+        ctx.save();
+        ctx.translate(cx + 26*S, cy - 5*S);
+        ctx.rotate(0.4);
+        ctx.fillStyle = '#5c4033'; ctx.fillRect(-3*S, -50*S, 6*S, 55*S);
+        ctx.fillStyle = '#3d2b1f';
+        ctx.beginPath(); ctx.ellipse(0, -48*S, 10*S, 8*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    // ─── SKELETON ──────────────────────────────────────────────────────────
+    function drawCreatureSkeleton(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const px = style === 'pixel';
+
+        drawDropShadow(cx, cy + 65*S, 35*S, 10*S, 0.35);
+
+        const bone = '#e8e0c8';
+        const joint = '#c8c0a0';
+        const dark = '#333';
+
+        // Legs (bones with joints)
+        [[-12*S],[12*S]].forEach(([lx]) => {
+            ctx.strokeStyle = bone; ctx.lineWidth = 7*S; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(cx + lx, cy + 20*S); ctx.lineTo(cx + lx, cy + 55*S); ctx.stroke();
+            ctx.fillStyle = joint;
+            ctx.beginPath(); ctx.arc(cx + lx, cy + 20*S, 5*S, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(cx + lx, cy + 55*S, 5*S, 0, Math.PI*2); ctx.fill();
+        });
+
+        // Pelvis
+        ctx.strokeStyle = bone; ctx.lineWidth = 7*S;
+        ctx.beginPath(); ctx.moveTo(cx - 16*S, cy + 20*S); ctx.lineTo(cx + 16*S, cy + 20*S); ctx.stroke();
+
+        // Spine
+        ctx.beginPath(); ctx.moveTo(cx, cy + 20*S); ctx.lineTo(cx, cy - 30*S); ctx.stroke();
+
+        // Ribcage
+        ctx.strokeStyle = bone; ctx.lineWidth = 4*S;
+        for (let r = 0; r < 4; r++) {
+            const ry = cy - 5*S - r*10*S;
+            const rw = (18 - r*2)*S;
+            ctx.beginPath(); ctx.ellipse(cx, ry, rw, 8*S, 0, 0, Math.PI*2); ctx.stroke();
+        }
+
+        // Arms (bones)
+        [[-1,cx - 28*S],[1,cx + 22*S]].forEach(([dir, ax]) => {
+            ctx.strokeStyle = bone; ctx.lineWidth = 6*S; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(ax + 6*dir*S, cy - 25*S); ctx.lineTo(ax, cy + 10*S); ctx.stroke();
+            ctx.fillStyle = joint;
+            ctx.beginPath(); ctx.arc(ax + 6*dir*S, cy - 25*S, 4*S, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(ax, cy + 10*S, 4*S, 0, Math.PI*2); ctx.fill();
+            // Hand fingers
+            for (let f = 0; f < 3; f++) {
+                ctx.strokeStyle = bone; ctx.lineWidth = 2.5*S;
+                ctx.beginPath(); ctx.moveTo(ax + (f-1)*4*S, cy + 10*S); ctx.lineTo(ax + (f-1)*5*S, cy + 24*S); ctx.stroke();
+            }
+        });
+
+        // Collarbone
+        ctx.strokeStyle = bone; ctx.lineWidth = 6*S;
+        ctx.beginPath(); ctx.moveTo(cx - 22*S, cy - 25*S); ctx.lineTo(cx + 22*S, cy - 25*S); ctx.stroke();
+
+        // Skull
+        const skullG = ctx.createRadialGradient(cx - 6*S, cy - 60*S, 4*S, cx, cy - 52*S, 24*S);
+        skullG.addColorStop(0, '#fff8e8'); skullG.addColorStop(1, bone);
+        ctx.fillStyle = skullG;
+        ctx.beginPath(); ctx.ellipse(cx, cy - 52*S, 23*S, 22*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = joint; ctx.lineWidth = 1.5*S;
+        ctx.beginPath(); ctx.ellipse(cx, cy - 52*S, 23*S, 22*S, 0, 0, Math.PI*2); ctx.stroke();
+
+        // Eye sockets
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.ellipse(cx - 9*S, cy - 54*S, 7*S, 7*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx + 9*S, cy - 54*S, 7*S, 7*S, 0, 0, Math.PI*2); ctx.fill();
+        // Glow in eyes
+        const eyeGlow = glow.replace(/,\s*[\d.]+\)/, ', 0.9)');
+        ctx.fillStyle = eyeGlow;
+        ctx.beginPath(); ctx.arc(cx - 9*S, cy - 54*S, 4*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 9*S, cy - 54*S, 4*S, 0, Math.PI*2); ctx.fill();
+
+        // Nasal cavity
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.moveTo(cx, cy - 44*S); ctx.lineTo(cx - 3*S, cy - 40*S); ctx.lineTo(cx + 3*S, cy - 40*S); ctx.closePath(); ctx.fill();
+
+        // Jaw / teeth
+        ctx.fillStyle = joint;
+        ctx.beginPath(); ctx.ellipse(cx, cy - 36*S, 14*S, 8*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fff8e8';
+        for (let t = -2; t <= 2; t++) {
+            ctx.fillRect(cx + t*5*S - 2*S, cy - 43*S, 3*S, 7*S);
+        }
+
+        // Rusty sword
+        ctx.save(); ctx.translate(cx + 26*S, cy - 10*S); ctx.rotate(-0.2);
+        ctx.fillStyle = '#7a6a5a'; ctx.beginPath(); ctx.moveTo(-3*S,0); ctx.lineTo(3*S,0); ctx.lineTo(1*S,-56*S); ctx.lineTo(-1*S,-56*S); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#5c3a00'; ctx.fillRect(-9*S,-5*S,18*S,4*S);
+        ctx.fillStyle = '#4a2a00'; ctx.fillRect(-2.5*S,-3*S,5*S,16*S);
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    // ─── DRAGON ────────────────────────────────────────────────────────────
+    function drawCreatureDragon(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+
+        drawGlowHalo(cx, cy, 100*S, glow, 4);
+        drawDropShadow(cx, cy + 80*S, 75*S, 20*S, 0.5);
+
+        const scale = base;
+        const belly = lightenColor(acc, 30);
+        const wing = darkenColor(base, 20);
+
+        // Wings (behind body)
+        [[-1, cx-45*S],[1, cx+45*S]].forEach(([dir, wx]) => {
+            const wGrad = ctx.createLinearGradient(wx, cy - 60*S, cx, cy);
+            wGrad.addColorStop(0, wing + 'cc'); wGrad.addColorStop(1, darkenColor(wing,40) + '88');
+            ctx.fillStyle = wGrad;
+            ctx.beginPath();
+            ctx.moveTo(cx + dir*20*S, cy - 20*S);
+            ctx.quadraticCurveTo(wx - dir*20*S, cy - 80*S, wx - dir*30*S, cy - 55*S);
+            ctx.quadraticCurveTo(wx, cy - 30*S, cx + dir*22*S, cy + 20*S);
+            ctx.closePath(); ctx.fill();
+            // Wing membrane ribs
+            ctx.strokeStyle = darkenColor(wing,50)+'aa'; ctx.lineWidth = 2*S;
+            for (let i = 0; i < 3; i++) {
+                const t = (i+1)/4;
+                ctx.beginPath();
+                ctx.moveTo(cx + dir*20*S, cy - 20*S + t*40*S);
+                ctx.quadraticCurveTo(wx - dir*(20-i*5)*S, cy - (80-t*60)*S, wx - dir*30*S, cy - 55*S + i*10*S);
+                ctx.stroke();
+            }
+        });
+
+        // Tail
+        ctx.strokeStyle = scale; ctx.lineWidth = 16*S; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(cx + 30*S, cy + 30*S);
+        ctx.quadraticCurveTo(cx + 80*S, cy + 60*S, cx + 90*S, cy + 20*S);
+        ctx.stroke();
+        ctx.lineWidth = 8*S;
+        ctx.beginPath();
+        ctx.moveTo(cx + 80*S, cy + 60*S);
+        ctx.lineTo(cx + 100*S, cy + 15*S);
+        ctx.stroke();
+
+        // Body
+        const bodyG = ctx.createRadialGradient(cx-20*S, cy-10*S, 10*S, cx, cy+10*S, 65*S);
+        bodyG.addColorStop(0, lightenColor(scale,30)); bodyG.addColorStop(0.6, scale); bodyG.addColorStop(1, darkenColor(scale,30));
+        ctx.fillStyle = bodyG;
+        ctx.beginPath(); ctx.ellipse(cx, cy + 10*S, 50*S, 55*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Belly plates
+        ctx.fillStyle = belly;
+        ctx.beginPath(); ctx.ellipse(cx, cy + 20*S, 28*S, 40*S, 0, 0, Math.PI*2); ctx.fill();
+        // Belly lines
+        ctx.strokeStyle = darkenColor(belly, 20); ctx.lineWidth = 1.5*S;
+        for (let i = 0; i < 5; i++) {
+            ctx.beginPath(); ctx.ellipse(cx, cy + 5*S + i*12*S, 25*S - i*2*S, 5*S, 0, 0, Math.PI); ctx.stroke();
+        }
+
+        // Legs
+        ctx.fillStyle = scale;
+        [[-28*S, 0.3],[28*S, -0.3]].forEach(([lx, angle]) => {
+            ctx.save(); ctx.translate(cx + lx, cy + 50*S); ctx.rotate(angle);
+            ctx.fillRect(-10*S, 0, 20*S, 28*S);
+            // Claws
+            ctx.fillStyle = '#d4d4d4';
+            for (let c = -1; c <= 1; c++) { ctx.beginPath(); ctx.moveTo(c*6*S, 28*S); ctx.lineTo(c*8*S, 40*S); ctx.lineTo(c*3*S, 28*S); ctx.fill(); }
+            ctx.restore();
+        });
+
+        // Neck
+        ctx.fillStyle = scale;
+        ctx.beginPath(); ctx.ellipse(cx - 10*S, cy - 48*S, 18*S, 28*S, -0.3, 0, Math.PI*2); ctx.fill();
+
+        // Head
+        const headG2 = ctx.createRadialGradient(cx-25*S, cy-85*S, 5*S, cx-15*S, cy-75*S, 38*S);
+        headG2.addColorStop(0, lightenColor(scale,25)); headG2.addColorStop(1, scale);
+        ctx.fillStyle = headG2;
+        ctx.beginPath();
+        ctx.moveTo(cx - 42*S, cy - 68*S);
+        ctx.quadraticCurveTo(cx - 30*S, cy - 100*S, cx + 5*S, cy - 95*S);
+        ctx.quadraticCurveTo(cx + 20*S, cy - 80*S, cx + 25*S, cy - 65*S);
+        ctx.quadraticCurveTo(cx + 10*S, cy - 55*S, cx - 10*S, cy - 55*S);
+        ctx.closePath(); ctx.fill();
+
+        // Horns
+        ctx.fillStyle = '#c8b090';
+        [[-20*S, -5*S],[5*S, -2*S]].forEach(([hx,_]) => {
+            ctx.beginPath();
+            ctx.moveTo(cx + hx, cy - 95*S);
+            ctx.quadraticCurveTo(cx + hx - 5*S, cy - 118*S, cx + hx + 4*S, cy - 110*S);
+            ctx.closePath(); ctx.fill();
+        });
+
+        // Dragon eye
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath(); ctx.ellipse(cx - 5*S, cy - 75*S, 8*S, 6*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.ellipse(cx - 5*S, cy - 75*S, 3*S, 5*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath(); ctx.arc(cx - 3*S, cy - 77*S, 2*S, 0, Math.PI*2); ctx.fill();
+
+        // Fire breath
+        const fireG = ctx.createLinearGradient(cx + 20*S, cy - 68*S, cx + 80*S, cy - 80*S);
+        fireG.addColorStop(0, '#fbbf24'); fireG.addColorStop(0.4, '#ef4444'); fireG.addColorStop(1, 'transparent');
+        ctx.fillStyle = fireG;
+        ctx.beginPath();
+        ctx.moveTo(cx + 22*S, cy - 64*S);
+        ctx.quadraticCurveTo(cx + 55*S, cy - 82*S, cx + 82*S, cy - 90*S);
+        ctx.quadraticCurveTo(cx + 55*S, cy - 68*S, cx + 22*S, cy - 60*S);
+        ctx.closePath(); ctx.fill();
+
+        ctx.restore();
+    }
+
+    // ─── ORC ───────────────────────────────────────────────────────────────
+    function drawCreatureOrc(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const px = style === 'pixel';
+        const skin = '#5c8c3e';
+
+        drawDropShadow(cx, cy + 70*S, 55*S, 15*S, 0.5);
+
+        // Massive legs
+        ctx.fillStyle = '#3a2508';
+        ctx.beginPath(); ctx.roundRect(cx-22*S, cy+28*S, 18*S, 40*S, px?0:5*S); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(cx+4*S, cy+28*S, 18*S, 40*S, px?0:5*S); ctx.fill();
+
+        // Muscular torso
+        const tG = ctx.createLinearGradient(cx-32*S, cy-20*S, cx+32*S, cy+32*S);
+        tG.addColorStop(0, lightenColor(skin,20)); tG.addColorStop(1, darkenColor(skin,20));
+        ctx.fillStyle = tG;
+        ctx.beginPath(); ctx.roundRect(cx-30*S, cy-18*S, 60*S, 50*S, px?0:8*S); ctx.fill();
+
+        // Massive arms
+        ctx.fillStyle = skin;
+        ctx.beginPath(); ctx.roundRect(cx-46*S, cy-12*S, 17*S, 44*S, px?0:7*S); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(cx+29*S, cy-12*S, 17*S, 44*S, px?0:7*S); ctx.fill();
+
+        // Fists
+        ctx.fillStyle = darkenColor(skin,15);
+        ctx.beginPath(); ctx.ellipse(cx-38*S, cy+34*S, 11*S, 9*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx+38*S, cy+34*S, 11*S, 9*S, 0, 0, Math.PI*2); ctx.fill();
+        // Knuckles
+        ctx.fillStyle = darkenColor(skin,30);
+        for (let k = -1; k <= 1; k++) {
+            ctx.beginPath(); ctx.arc(cx-38*S + k*4*S, cy+30*S, 2*S, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(cx+38*S + k*4*S, cy+30*S, 2*S, 0, Math.PI*2); ctx.fill();
+        }
+
+        // Battle armor plate on chest
+        ctx.fillStyle = acc;
+        ctx.beginPath(); ctx.roundRect(cx-22*S, cy-12*S, 44*S, 28*S, 4*S); ctx.fill();
+        // Rivets
+        ctx.fillStyle = lightenColor(acc, 40);
+        [[cx-16*S,cy-6*S],[cx+16*S,cy-6*S],[cx-16*S,cy+10*S],[cx+16*S,cy+10*S]].forEach(([px2,py2]) => {
+            ctx.beginPath(); ctx.arc(px2, py2, 3*S, 0, Math.PI*2); ctx.fill();
+        });
+
+        // Huge head
+        const hG = ctx.createRadialGradient(cx-10*S, cy-52*S, 5*S, cx, cy-42*S, 34*S);
+        hG.addColorStop(0, lightenColor(skin,15)); hG.addColorStop(1, skin);
+        ctx.fillStyle = hG;
+        ctx.beginPath(); ctx.ellipse(cx, cy-42*S, 30*S, 28*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Angry brow
+        ctx.strokeStyle = darkenColor(skin,40); ctx.lineWidth = 4*S; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(cx-18*S, cy-56*S); ctx.lineTo(cx-4*S, cy-52*S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx+18*S, cy-56*S); ctx.lineTo(cx+4*S, cy-52*S); ctx.stroke();
+
+        // Eyes
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath(); ctx.ellipse(cx-12*S, cy-44*S, 7*S, 6*S, -0.2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx+12*S, cy-44*S, 7*S, 6*S, 0.2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(cx-12*S, cy-44*S, 3*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx+12*S, cy-44*S, 3*S, 0, Math.PI*2); ctx.fill();
+
+        // Tusks
+        ctx.fillStyle = '#f0e68c';
+        ctx.beginPath(); ctx.moveTo(cx-8*S, cy-30*S); ctx.lineTo(cx-14*S, cy-18*S); ctx.lineTo(cx-5*S, cy-28*S); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx+8*S, cy-30*S); ctx.lineTo(cx+14*S, cy-18*S); ctx.lineTo(cx+5*S, cy-28*S); ctx.closePath(); ctx.fill();
+
+        ctx.restore();
+    }
+
+    // ─── GHOST ─────────────────────────────────────────────────────────────
+    function drawCreatureGhost(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+
+        // Eerie glow
+        drawGlowHalo(cx, cy, 90*S, glow, 4);
+
+        ctx.globalAlpha = 0.82;
+
+        // Wispy tail
+        const tailG = ctx.createLinearGradient(cx, cy + 20*S, cx, cy + 85*S);
+        tailG.addColorStop(0, base + 'cc'); tailG.addColorStop(1, 'transparent');
+        ctx.fillStyle = tailG;
+        ctx.beginPath();
+        ctx.moveTo(cx - 30*S, cy + 20*S);
+        ctx.quadraticCurveTo(cx - 50*S, cy + 60*S, cx - 20*S, cy + 85*S);
+        ctx.lineTo(cx, cy + 75*S);
+        ctx.lineTo(cx + 20*S, cy + 85*S);
+        ctx.quadraticCurveTo(cx + 50*S, cy + 60*S, cx + 30*S, cy + 20*S);
+        ctx.closePath(); ctx.fill();
+
+        // Main ghost body
+        const bodyG = ctx.createRadialGradient(cx - 12*S, cy - 20*S, 5*S, cx, cy, 55*S);
+        bodyG.addColorStop(0, lightenColor(base, 50) + 'ee');
+        bodyG.addColorStop(0.6, base + 'cc');
+        bodyG.addColorStop(1, darkenColor(base, 20) + '88');
+        ctx.fillStyle = bodyG;
+        ctx.beginPath();
+        ctx.arc(cx, cy - 10*S, 52*S, Math.PI, 0);
+        ctx.lineTo(cx + 30*S, cy + 20*S);
+        ctx.lineTo(cx, cy + 10*S);
+        ctx.lineTo(cx - 30*S, cy + 20*S);
+        ctx.closePath(); ctx.fill();
+
+        // Arms reaching out
+        ctx.fillStyle = base + 'aa';
+        ctx.beginPath(); ctx.ellipse(cx - 58*S, cy - 5*S, 18*S, 9*S, -0.4, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx + 58*S, cy - 5*S, 18*S, 9*S, 0.4, 0, Math.PI*2); ctx.fill();
+
+        // Face
+        ctx.globalAlpha = 1;
+        // Dark empty eyes
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.beginPath(); ctx.ellipse(cx - 16*S, cy - 16*S, 10*S, 12*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx + 16*S, cy - 16*S, 10*S, 12*S, 0, 0, Math.PI*2); ctx.fill();
+        // Glow in eyes
+        ctx.fillStyle = glow.replace(/,[\d.]+\)/, ', 0.9)');
+        ctx.beginPath(); ctx.arc(cx - 16*S, cy - 16*S, 5*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 16*S, cy - 16*S, 5*S, 0, Math.PI*2); ctx.fill();
+        // Wailing mouth
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.beginPath(); ctx.ellipse(cx, cy + 4*S, 12*S, 10*S, 0, 0, Math.PI*2); ctx.fill();
+
+        ctx.restore();
+    }
+
+    // ─── SPIDER ────────────────────────────────────────────────────────────
+    function drawCreatureSpider(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+
+        drawGlowHalo(cx, cy, 60*S, glow, 2);
+        drawDropShadow(cx, cy + 40*S, 60*S, 14*S, 0.4);
+
+        // Spider legs (4 per side)
+        const legAngles = [-0.9, -0.45, 0.1, 0.6];
+        [-1, 1].forEach(dir => {
+            legAngles.forEach((angle, i) => {
+                ctx.strokeStyle = base; ctx.lineWidth = 4*S; ctx.lineCap = 'round';
+                const startX = cx + dir * 25*S;
+                const startY = cy - 10*S + i * 10*S;
+                const midX = cx + dir * (50 + i*8)*S;
+                const midY = cy - (30 - i*20)*S;
+                const endX = cx + dir * (30 + i*12)*S;
+                const endY = cy + (20 + i*10)*S;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(midX, midY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+            });
+        });
+
+        // Abdomen (large oval)
+        const abdG = ctx.createRadialGradient(cx - 8*S, cy + 20*S, 5*S, cx, cy + 20*S, 36*S);
+        abdG.addColorStop(0, lightenColor(base, 30)); abdG.addColorStop(1, darkenColor(base, 20));
+        ctx.fillStyle = abdG;
+        ctx.beginPath(); ctx.ellipse(cx, cy + 20*S, 34*S, 30*S, 0, 0, Math.PI*2); ctx.fill();
+        // Pattern on abdomen
+        ctx.fillStyle = acc;
+        ctx.beginPath(); ctx.ellipse(cx, cy + 18*S, 12*S, 16*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Cephalothorax (head+body)
+        const thoraxG = ctx.createRadialGradient(cx - 5*S, cy - 14*S, 3*S, cx, cy - 10*S, 22*S);
+        thoraxG.addColorStop(0, lightenColor(base, 20)); thoraxG.addColorStop(1, base);
+        ctx.fillStyle = thoraxG;
+        ctx.beginPath(); ctx.ellipse(cx, cy - 10*S, 22*S, 18*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // 8 eyes
+        const eyePositions = [[-10*S,-20*S,4.5*S],[-4*S,-22*S,4.5*S],[4*S,-22*S,4.5*S],[10*S,-20*S,4.5*S],
+                               [-8*S,-14*S,3*S],[-2*S,-14*S,3*S],[2*S,-14*S,3*S],[8*S,-14*S,3*S]];
+        eyePositions.forEach(([ex, ey, er]) => {
+            ctx.fillStyle = '#111';
+            ctx.beginPath(); ctx.arc(cx + ex, cy + ey, er, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = glow.replace(/,[\d.]+\)/, ', 0.8)');
+            ctx.beginPath(); ctx.arc(cx + ex, cy + ey, er * 0.5, 0, Math.PI*2); ctx.fill();
+        });
+
+        // Fangs
+        ctx.strokeStyle = '#d4d4d4'; ctx.lineWidth = 3*S; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(cx - 6*S, cy - 4*S); ctx.lineTo(cx - 8*S, cy + 6*S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx + 6*S, cy - 4*S); ctx.lineTo(cx + 8*S, cy + 6*S); ctx.stroke();
+
+        ctx.restore();
+    }
+
+    // ─── BAT ───────────────────────────────────────────────────────────────
+    function drawCreatureBat(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+
+        drawGlowHalo(cx, cy, 70*S, glow, 2);
+
+        // Wings
+        [-1, 1].forEach(dir => {
+            const wingG = ctx.createLinearGradient(cx, cy, cx + dir*80*S, cy - 40*S);
+            wingG.addColorStop(0, base + 'dd'); wingG.addColorStop(1, darkenColor(base,30) + '66');
+            ctx.fillStyle = wingG;
+            ctx.beginPath();
+            ctx.moveTo(cx + dir*12*S, cy - 8*S);
+            ctx.quadraticCurveTo(cx + dir*45*S, cy - 60*S, cx + dir*75*S, cy - 40*S);
+            ctx.quadraticCurveTo(cx + dir*60*S, cy + 10*S, cx + dir*15*S, cy + 12*S);
+            ctx.closePath(); ctx.fill();
+            // Wing fingers
+            ctx.strokeStyle = darkenColor(base,40)+'aa'; ctx.lineWidth = 1.5*S;
+            for (let f = 1; f <= 3; f++) {
+                ctx.beginPath();
+                ctx.moveTo(cx + dir*12*S, cy - 4*S);
+                ctx.lineTo(cx + dir*(30+f*15)*S, cy - (30+f*8)*S);
+                ctx.stroke();
+            }
+        });
+
+        // Body
+        const bodyG = ctx.createRadialGradient(cx-5*S, cy-5*S, 3*S, cx, cy, 18*S);
+        bodyG.addColorStop(0, lightenColor(base,20)); bodyG.addColorStop(1, base);
+        ctx.fillStyle = bodyG;
+        ctx.beginPath(); ctx.ellipse(cx, cy, 16*S, 20*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Head
+        const hG = ctx.createRadialGradient(cx-5*S, cy-30*S, 3*S, cx, cy-24*S, 18*S);
+        hG.addColorStop(0, lightenColor(base,20)); hG.addColorStop(1, base);
+        ctx.fillStyle = hG;
+        ctx.beginPath(); ctx.ellipse(cx, cy - 24*S, 16*S, 14*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Ears
+        ctx.fillStyle = darkenColor(base, 20);
+        ctx.beginPath(); ctx.moveTo(cx - 12*S, cy - 34*S); ctx.lineTo(cx - 18*S, cy - 52*S); ctx.lineTo(cx - 4*S, cy - 36*S); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx + 12*S, cy - 34*S); ctx.lineTo(cx + 18*S, cy - 52*S); ctx.lineTo(cx + 4*S, cy - 36*S); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ec4899';
+        ctx.beginPath(); ctx.moveTo(cx - 10*S, cy - 36*S); ctx.lineTo(cx - 14*S, cy - 48*S); ctx.lineTo(cx - 5*S, cy - 37*S); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx + 10*S, cy - 36*S); ctx.lineTo(cx + 14*S, cy - 48*S); ctx.lineTo(cx + 5*S, cy - 37*S); ctx.closePath(); ctx.fill();
+
+        // Eyes (glowing red)
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(cx - 6*S, cy - 24*S, 5*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 6*S, cy - 24*S, 5*S, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath(); ctx.arc(cx - 6*S, cy - 24*S, 3*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 6*S, cy - 24*S, 3*S, 0, Math.PI*2); ctx.fill();
+
+        // Fangs
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.moveTo(cx - 4*S, cy - 14*S); ctx.lineTo(cx - 6*S, cy - 6*S); ctx.lineTo(cx - 1*S, cy - 13*S); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx + 4*S, cy - 14*S); ctx.lineTo(cx + 6*S, cy - 6*S); ctx.lineTo(cx + 1*S, cy - 13*S); ctx.closePath(); ctx.fill();
+
+        ctx.restore();
+    }
+
+    // ─── WOLF ──────────────────────────────────────────────────────────────
+    function drawCreatureWolf(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+
+        drawDropShadow(cx, cy + 60*S, 55*S, 15*S, 0.45);
+
+        const fur = base;
+        const belly = lightenColor(acc, 20);
+
+        // Body (crouched)
+        const bodyG = ctx.createRadialGradient(cx - 15*S, cy - 5*S, 10*S, cx, cy + 5*S, 50*S);
+        bodyG.addColorStop(0, lightenColor(fur,20)); bodyG.addColorStop(1, fur);
+        ctx.fillStyle = bodyG;
+        ctx.beginPath(); ctx.ellipse(cx, cy + 5*S, 50*S, 32*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Belly
+        ctx.fillStyle = belly;
+        ctx.beginPath(); ctx.ellipse(cx, cy + 12*S, 30*S, 20*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Legs (4 paws)
+        const paws = [[-30*S,30*S],[-12*S,30*S],[12*S,30*S],[30*S,30*S]];
+        paws.forEach(([px2, py]) => {
+            ctx.fillStyle = fur; ctx.beginPath(); ctx.roundRect(cx+px2-6*S, cy+py, 12*S, 28*S, [4*S,4*S,8*S,8*S]); ctx.fill();
+        });
+
+        // Tail
+        ctx.strokeStyle = fur; ctx.lineWidth = 16*S; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(cx + 45*S, cy - 5*S); ctx.quadraticCurveTo(cx + 75*S, cy - 40*S, cx + 60*S, cy - 60*S); ctx.stroke();
+        ctx.strokeStyle = lightenColor(fur,30); ctx.lineWidth = 8*S;
+        ctx.beginPath(); ctx.moveTo(cx + 45*S, cy - 5*S); ctx.quadraticCurveTo(cx + 75*S, cy - 40*S, cx + 60*S, cy - 60*S); ctx.stroke();
+
+        // Neck
+        ctx.fillStyle = fur;
+        ctx.beginPath(); ctx.ellipse(cx - 38*S, cy - 22*S, 18*S, 22*S, -0.4, 0, Math.PI*2); ctx.fill();
+
+        // Head
+        ctx.beginPath(); ctx.ellipse(cx - 52*S, cy - 32*S, 24*S, 20*S, -0.2, 0, Math.PI*2); ctx.fill();
+
+        // Snout / muzzle
+        ctx.fillStyle = belly;
+        ctx.beginPath(); ctx.ellipse(cx - 70*S, cy - 28*S, 16*S, 10*S, -0.15, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#cc2222';
+        ctx.beginPath(); ctx.arc(cx - 72*S, cy - 22*S, 3*S, 0, Math.PI*2); ctx.fill();
+
+        // Ears
+        ctx.fillStyle = fur;
+        ctx.beginPath(); ctx.moveTo(cx - 58*S, cy - 48*S); ctx.lineTo(cx - 66*S, cy - 65*S); ctx.lineTo(cx - 46*S, cy - 50*S); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx - 42*S, cy - 48*S); ctx.lineTo(cx - 44*S, cy - 64*S); ctx.lineTo(cx - 32*S, cy - 50*S); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ec4899';
+        ctx.beginPath(); ctx.moveTo(cx - 56*S, cy - 50*S); ctx.lineTo(cx - 62*S, cy - 62*S); ctx.lineTo(cx - 48*S, cy - 52*S); ctx.closePath(); ctx.fill();
+
+        // Eyes (glowing)
+        ctx.fillStyle = glow.replace(/,[\d.]+\)/, ', 0.9)');
+        ctx.beginPath(); ctx.ellipse(cx - 44*S, cy - 36*S, 6*S, 5*S, 0.2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.ellipse(cx - 44*S, cy - 36*S, 3*S, 4*S, 0.2, 0, Math.PI*2); ctx.fill();
+
+        // Snarl / teeth
+        ctx.fillStyle = '#fff';
+        for (let t = -2; t <= 1; t++) {
+            ctx.beginPath(); ctx.moveTo(cx - 70*S + t*4*S, cy - 22*S); ctx.lineTo(cx - 68*S + t*4*S, cy - 15*S); ctx.lineTo(cx - 66*S + t*4*S, cy - 22*S); ctx.closePath(); ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    // ─── GOLEM ─────────────────────────────────────────────────────────────
+    function drawCreatureGolem(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const px = style === 'pixel';
+
+        drawGlowHalo(cx, cy, 80*S, glow, 2);
+        drawDropShadow(cx, cy + 75*S, 60*S, 18*S, 0.5);
+
+        const rock = base;
+        const rune = acc;
+
+        // Block legs
+        [[cx-18*S,cy+30*S],[cx+4*S,cy+30*S]].forEach(([lx,ly]) => {
+            const lG = ctx.createLinearGradient(lx, ly, lx+16*S, ly+40*S);
+            lG.addColorStop(0, lightenColor(rock,15)); lG.addColorStop(1, darkenColor(rock,20));
+            ctx.fillStyle = lG;
+            ctx.beginPath(); ctx.roundRect(lx, ly, 16*S, 42*S, px?0:4*S); ctx.fill();
+            ctx.strokeStyle = darkenColor(rock,40); ctx.lineWidth = 2*S;
+            ctx.strokeRect(lx, ly, 16*S, 42*S);
+        });
+
+        // Massive torso (cube-like)
+        const torsoG = ctx.createLinearGradient(cx-38*S, cy-20*S, cx+38*S, cy+34*S);
+        torsoG.addColorStop(0, lightenColor(rock,20)); torsoG.addColorStop(1, darkenColor(rock,25));
+        ctx.fillStyle = torsoG;
+        ctx.beginPath(); ctx.roundRect(cx-36*S, cy-18*S, 72*S, 52*S, px?0:6*S); ctx.fill();
+        ctx.strokeStyle = darkenColor(rock,40); ctx.lineWidth = 2.5*S;
+        ctx.strokeRect(cx-36*S, cy-18*S, 72*S, 52*S);
+
+        // Crack lines on torso
+        ctx.strokeStyle = darkenColor(rock,50)+'aa'; ctx.lineWidth = 1.5*S;
+        ctx.beginPath(); ctx.moveTo(cx-10*S, cy-18*S); ctx.lineTo(cx+5*S, cy+10*S); ctx.lineTo(cx-5*S, cy+34*S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx+20*S, cy-10*S); ctx.lineTo(cx+30*S, cy+20*S); ctx.stroke();
+
+        // Rune glow on chest
+        drawGlowHalo(cx, cy + 8*S, 20*S, glow, 2);
+        ctx.fillStyle = rune;
+        ctx.font = `bold ${22*S}px serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('⬡', cx, cy + 16*S);
+
+        // Block arms
+        [[cx-52*S, cy-14*S],[cx+36*S, cy-14*S]].forEach(([ax, ay]) => {
+            const aG = ctx.createLinearGradient(ax, ay, ax+16*S, ay+52*S);
+            aG.addColorStop(0, lightenColor(rock,10)); aG.addColorStop(1, darkenColor(rock,30));
+            ctx.fillStyle = aG;
+            ctx.beginPath(); ctx.roundRect(ax, ay, 16*S, 52*S, px?0:4*S); ctx.fill();
+            ctx.strokeStyle = darkenColor(rock,40); ctx.lineWidth = 2*S;
+            ctx.strokeRect(ax, ay, 16*S, 52*S);
+        });
+
+        // Square head
+        const headG = ctx.createLinearGradient(cx-28*S, cy-75*S, cx+28*S, cy-22*S);
+        headG.addColorStop(0, lightenColor(rock,25)); headG.addColorStop(1, rock);
+        ctx.fillStyle = headG;
+        ctx.beginPath(); ctx.roundRect(cx-26*S, cy-72*S, 52*S, 56*S, px?0:6*S); ctx.fill();
+        ctx.strokeStyle = darkenColor(rock,40); ctx.lineWidth = 2.5*S;
+        ctx.strokeRect(cx-26*S, cy-72*S, 52*S, 56*S);
+
+        // Glowing eyes (rectangular)
+        ctx.fillStyle = glow.replace(/,[\d.]+\)/, ', 0.9)');
+        ctx.fillRect(cx - 18*S, cy - 58*S, 10*S, 6*S);
+        ctx.fillRect(cx + 8*S, cy - 58*S, 10*S, 6*S);
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillRect(cx - 17*S, cy - 58*S, 4*S, 3*S);
+        ctx.fillRect(cx + 9*S, cy - 58*S, 4*S, 3*S);
+
+        ctx.restore();
+    }
+
+    // ─── BOSS ──────────────────────────────────────────────────────────────
+    function drawCreatureBoss(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+
+        // Epic aura
+        drawGlowHalo(cx, cy, 110*S, glow, 5);
+        drawDropShadow(cx, cy + 95*S, 80*S, 25*S, 0.6);
+
+        const demonSkin = darkenColor(base, 30);
+        const hornsCol = darkenColor(base, 60);
+        const glowStr = glow.replace(/,[\d.]+\)/, ', 0.95)');
+
+        // Cape/wings
+        [-1,1].forEach(dir => {
+            const wG = ctx.createLinearGradient(cx, cy-50*S, cx+dir*90*S, cy+50*S);
+            wG.addColorStop(0, darkenColor(base,50)+'cc'); wG.addColorStop(1, 'transparent');
+            ctx.fillStyle = wG;
+            ctx.beginPath();
+            ctx.moveTo(cx + dir*22*S, cy - 50*S);
+            ctx.quadraticCurveTo(cx + dir*80*S, cy - 30*S, cx + dir*90*S, cy + 50*S);
+            ctx.quadraticCurveTo(cx + dir*60*S, cy + 70*S, cx + dir*25*S, cy + 30*S);
+            ctx.closePath(); ctx.fill();
+        });
+
+        // Massive legs
+        [[cx-22*S,cy+38*S],[cx+6*S,cy+38*S]].forEach(([lx,ly]) => {
+            ctx.fillStyle = demonSkin;
+            ctx.beginPath(); ctx.roundRect(lx, ly, 18*S, 55*S, 5*S); ctx.fill();
+            ctx.fillStyle = darkenColor(demonSkin,20);
+            ctx.beginPath(); ctx.roundRect(lx-2*S, ly+40*S, 22*S, 18*S, [2*S,2*S,6*S,6*S]); ctx.fill();
+        });
+
+        // Torso (wide, muscled)
+        const tG = ctx.createLinearGradient(cx-45*S, cy-25*S, cx+45*S, cy+42*S);
+        tG.addColorStop(0, lightenColor(demonSkin,15)); tG.addColorStop(1, darkenColor(demonSkin,15));
+        ctx.fillStyle = tG;
+        ctx.beginPath(); ctx.roundRect(cx-42*S, cy-22*S, 84*S, 64*S, 8*S); ctx.fill();
+
+        // Abs / muscle lines
+        ctx.strokeStyle = darkenColor(demonSkin,35); ctx.lineWidth = 2*S;
+        for (let m = 0; m < 3; m++) {
+            ctx.beginPath(); ctx.moveTo(cx-18*S, cy+m*18*S); ctx.lineTo(cx+18*S, cy+m*18*S); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.moveTo(cx, cy-15*S); ctx.lineTo(cx, cy+35*S); ctx.stroke();
+
+        // Glowing chest rune
+        drawGlowHalo(cx, cy+8*S, 25*S, glow, 3);
+        ctx.fillStyle = glowStr;
+        ctx.font = `bold ${28*S}px serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('☠', cx, cy + 20*S);
+
+        // Arms
+        [[cx-58*S,cy-18*S,-0.2],[cx+42*S,cy-18*S,0.2]].forEach(([ax,ay,rot]) => {
+            ctx.save(); ctx.translate(ax, ay); ctx.rotate(rot);
+            const aG = ctx.createLinearGradient(-12*S, 0, 12*S, 56*S);
+            aG.addColorStop(0, lightenColor(demonSkin,10)); aG.addColorStop(1, demonSkin);
+            ctx.fillStyle = aG; ctx.beginPath(); ctx.roundRect(-12*S, 0, 24*S, 56*S, 8*S); ctx.fill();
+            // Fist
+            ctx.fillStyle = darkenColor(demonSkin, 20);
+            ctx.beginPath(); ctx.ellipse(0, 60*S, 14*S, 12*S, 0, 0, Math.PI*2); ctx.fill();
+            // Claws
+            ctx.fillStyle = '#c8b090';
+            for (let c = -1; c <= 1; c++) {
+                ctx.beginPath(); ctx.moveTo(c*8*S, 70*S); ctx.lineTo(c*10*S, 84*S); ctx.lineTo(c*4*S, 70*S); ctx.closePath(); ctx.fill();
+            }
+            ctx.restore();
+        });
+
+        // Head
+        const hG = ctx.createRadialGradient(cx-15*S, cy-68*S, 5*S, cx, cy-55*S, 40*S);
+        hG.addColorStop(0, lightenColor(demonSkin,20)); hG.addColorStop(1, demonSkin);
+        ctx.fillStyle = hG;
+        ctx.beginPath(); ctx.ellipse(cx, cy - 54*S, 36*S, 32*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Horns (large, curved)
+        [[cx-28*S,-0.6],[cx+28*S,0.6]].forEach(([hx, ang]) => {
+            ctx.fillStyle = hornsCol;
+            ctx.save(); ctx.translate(hx, cy - 82*S); ctx.rotate(ang);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-12*S, -35*S, 5*S, -55*S); ctx.lineTo(8*S, -42*S); ctx.quadraticCurveTo(-2*S,-25*S, 10*S, 0); ctx.closePath(); ctx.fill();
+            ctx.restore();
+        });
+
+        // Boss eyes (blazing)
+        [[cx-15*S],[cx+15*S]].forEach(([ex]) => {
+            drawGlowHalo(ex, cy - 58*S, 14*S, glow, 2);
+            ctx.fillStyle = '#111';
+            ctx.beginPath(); ctx.ellipse(ex, cy - 58*S, 9*S, 8*S, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = glowStr;
+            ctx.beginPath(); ctx.ellipse(ex, cy - 58*S, 5*S, 7*S, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.beginPath(); ctx.arc(ex + 2*S, cy - 62*S, 2.5*S, 0, Math.PI*2); ctx.fill();
+        });
+
+        // Demonic grin
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(cx, cy - 40*S, 16*S, 0.1, Math.PI - 0.1); ctx.fill();
+        ctx.fillStyle = '#f8f8f8';
+        for (let t = -3; t <= 3; t++) {
+            ctx.beginPath(); ctx.moveTo(cx + t*5*S, cy - 42*S); ctx.lineTo(cx + t*6*S, cy - 34*S); ctx.lineTo(cx + (t+0.5)*5*S, cy - 42*S); ctx.closePath(); ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    // ─── COIN ──────────────────────────────────────────────────────────────
+    function drawCoinAsset(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const R = 72 * S;
+
+        drawGlowHalo(cx, cy, R * 1.2, glow, 3);
+        drawDropShadow(cx, cy + R * 0.9, R * 0.9, R * 0.2, 0.4);
+
+        // Coin body
+        const coinG = ctx.createRadialGradient(cx - R*0.3, cy - R*0.3, R*0.05, cx, cy, R);
+        coinG.addColorStop(0, '#fff8dc'); coinG.addColorStop(0.4, '#ffd700'); coinG.addColorStop(0.7, base); coinG.addColorStop(1, darkenColor(base, 40));
+        ctx.fillStyle = coinG;
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.fill();
+
+        // Rim
+        ctx.strokeStyle = darkenColor(base, 30); ctx.lineWidth = 5*S;
+        ctx.beginPath(); ctx.arc(cx, cy, R - 2*S, 0, Math.PI*2); ctx.stroke();
+        ctx.strokeStyle = lightenColor(base, 40); ctx.lineWidth = 2*S;
+        ctx.beginPath(); ctx.arc(cx, cy, R - 6*S, 0, Math.PI*2); ctx.stroke();
+
+        // Star / symbol
+        ctx.fillStyle = darkenColor(base, 50);
+        ctx.font = `bold ${R * 0.85}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('★', cx + 1*S, cy + 2*S);
+        ctx.fillStyle = lightenColor(base, 30);
+        ctx.fillText('★', cx, cy);
+
+        drawSpecular(cx - R*0.25, cy - R*0.25, R * 0.5, 0.45);
+        ctx.restore();
+    }
+
+    // ─── TREE / PLANT ──────────────────────────────────────────────────────
+    function drawTreeAsset(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const lp2 = promptInput.value.toLowerCase();
+        const isMushroom = lp2.includes('hongo') || lp2.includes('mushroom') || lp2.includes('seta');
+        const isFlower   = lp2.includes('flor') || lp2.includes('flower');
+
+        if (isMushroom) {
+            // Stem
+            const stemG = ctx.createLinearGradient(cx-12*S,cy+20*S,cx+12*S,cy+70*S);
+            stemG.addColorStop(0,'#f5f0e0'); stemG.addColorStop(1,'#d4caa0');
+            ctx.fillStyle = stemG;
+            ctx.beginPath(); ctx.roundRect(cx-12*S, cy+20*S, 24*S, 55*S, [4*S,4*S,8*S,8*S]); ctx.fill();
+            // Cap
+            drawGlowHalo(cx, cy-10*S, 60*S, glow, 2);
+            const capG = ctx.createRadialGradient(cx-15*S, cy-30*S, 5*S, cx, cy, 55*S);
+            capG.addColorStop(0, lightenColor(base,30)); capG.addColorStop(0.6, base); capG.addColorStop(1, darkenColor(base,30));
+            ctx.fillStyle = capG;
+            ctx.beginPath(); ctx.ellipse(cx, cy, 55*S, 40*S, 0, Math.PI, 0); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(cx, cy, 55*S, 14*S, 0, 0, Math.PI*2); ctx.fill();
+            // Spots
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            [[0,-22],[−20,-12],[20,-12],[−8,-32],[8,-32]].forEach(([dx,dy]) => {
+                ctx.beginPath(); ctx.arc(cx+dx*S, cy+dy*S, 7*S, 0, Math.PI*2); ctx.fill();
+            });
+        } else if (isFlower) {
+            // Stem
+            ctx.strokeStyle = '#059669'; ctx.lineWidth = 5*S; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(cx, cy+70*S); ctx.quadraticCurveTo(cx-15*S, cy+20*S, cx, cy-10*S); ctx.stroke();
+            // Leaf
+            ctx.fillStyle = '#059669';
+            ctx.beginPath(); ctx.ellipse(cx-25*S, cy+30*S, 20*S, 10*S, -0.5, 0, Math.PI*2); ctx.fill();
+            // Petals
+            const petalCol = base;
+            for (let p = 0; p < 6; p++) {
+                const angle = (p / 6) * Math.PI * 2;
+                ctx.fillStyle = petalCol;
+                ctx.save(); ctx.translate(cx, cy-10*S); ctx.rotate(angle);
+                ctx.beginPath(); ctx.ellipse(0, -25*S, 10*S, 20*S, 0, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+            }
+            // Center
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath(); ctx.arc(cx, cy-10*S, 14*S, 0, Math.PI*2); ctx.fill();
+        } else {
+            // Tree trunk
+            const trunkG = ctx.createLinearGradient(cx-16*S, cy+20*S, cx+16*S, cy+80*S);
+            trunkG.addColorStop(0,'#8b5e3c'); trunkG.addColorStop(1,'#5c3d1f');
+            ctx.fillStyle = trunkG;
+            ctx.beginPath(); ctx.roundRect(cx-16*S, cy+25*S, 32*S, 60*S, 4*S); ctx.fill();
+            // Bark lines
+            ctx.strokeStyle = darkenColor('#8b5e3c', 30); ctx.lineWidth = 2*S;
+            ctx.beginPath(); ctx.moveTo(cx-5*S,cy+30*S); ctx.lineTo(cx-8*S,cy+80*S); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx+5*S,cy+30*S); ctx.lineTo(cx+8*S,cy+80*S); ctx.stroke();
+            // Foliage (layered)
+            [[0,0,55*S,48*S],[0,-32*S,46*S,40*S],[0,-58*S,36*S,32*S]].forEach(([dx,dy,rw,rh],i) => {
+                drawGlowHalo(cx+dx, cy+dy, rw*0.8, 'rgba(5,150,105,0.3)', 1);
+                const leafG = ctx.createRadialGradient(cx+dx-rw*0.25, cy+dy-rh*0.25, rh*0.1, cx+dx, cy+dy, rw);
+                leafG.addColorStop(0, i===0?'#6ee7b7':i===1?lightenColor(base,20):lightenColor(base,35));
+                leafG.addColorStop(0.6, base);
+                leafG.addColorStop(1, darkenColor(base,25));
+                ctx.fillStyle = leafG;
+                ctx.beginPath(); ctx.ellipse(cx+dx, cy+dy, rw, rh, 0, 0, Math.PI*2); ctx.fill();
+            });
+            // Random fruit
+            if (acc !== '#3b82f6') {
+                const fruitPositions = [[-28*S,-18*S],[22*S,-12*S],[0,-45*S]];
+                fruitPositions.forEach(([fx,fy]) => {
+                    ctx.fillStyle = acc;
+                    ctx.beginPath(); ctx.arc(cx+fx, cy+fy, 8*S, 0, Math.PI*2); ctx.fill();
+                    drawSpecular(cx+fx-2*S, cy+fy-2*S, 5*S, 0.4);
+                });
+            }
+        }
+        ctx.restore();
+    }
+
+    // ─── BUILDING / TOWER ──────────────────────────────────────────────────
+    function drawBuildingAsset(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+
+        drawGlowHalo(cx, cy - 30*S, 60*S, glow, 2);
+        drawDropShadow(cx, cy + 80*S, 55*S, 18*S, 0.5);
+
+        const stone = base;
+        const accent = acc;
+
+        // Base / foundation
+        ctx.fillStyle = darkenColor(stone, 30);
+        ctx.beginPath(); ctx.roundRect(cx - 50*S, cy + 55*S, 100*S, 20*S, 4*S); ctx.fill();
+
+        // Tower body
+        const wallG = ctx.createLinearGradient(cx - 38*S, cy - 60*S, cx + 38*S, cy + 60*S);
+        wallG.addColorStop(0, lightenColor(stone, 20)); wallG.addColorStop(0.5, stone); wallG.addColorStop(1, darkenColor(stone, 20));
+        ctx.fillStyle = wallG;
+        ctx.beginPath(); ctx.roundRect(cx - 36*S, cy - 55*S, 72*S, 115*S, 4*S); ctx.fill();
+
+        // Stone bricks texture
+        ctx.strokeStyle = darkenColor(stone, 35); ctx.lineWidth = 1.5*S;
+        for (let row = 0; row < 8; row++) {
+            const y = cy - 55*S + row * 14*S;
+            const offset = (row % 2) * 18*S;
+            for (let col = -2; col <= 2; col++) {
+                ctx.strokeRect(cx + col * 36*S + offset - 18*S, y, 36*S, 14*S);
+            }
+        }
+
+        // Door arch
+        ctx.fillStyle = '#111';
+        ctx.beginPath();
+        ctx.arc(cx, cy + 38*S, 18*S, Math.PI, 0);
+        ctx.rect(cx - 18*S, cy + 38*S, 36*S, 18*S);
+        ctx.fill();
+
+        // Windows
+        [[cx, cy - 30*S],[cx - 20*S, cy + 5*S],[cx + 20*S, cy + 5*S]].forEach(([wx, wy]) => {
+            ctx.fillStyle = glow.replace(/,[\d.]+\)/, ', 0.7)');
+            ctx.beginPath(); ctx.arc(wx, wy - 4*S, 9*S, Math.PI, 0); ctx.rect(wx - 9*S, wy - 4*S, 18*S, 10*S); ctx.fill();
+            ctx.strokeStyle = darkenColor(stone, 40); ctx.lineWidth = 2*S;
+            ctx.beginPath(); ctx.arc(wx, wy - 4*S, 9*S, Math.PI, 0); ctx.stroke();
+            ctx.beginPath(); ctx.rect(wx - 9*S, wy - 4*S, 18*S, 10*S); ctx.stroke();
+        });
+
+        // Battlements (top)
+        ctx.fillStyle = lightenColor(stone, 10);
+        for (let b = -3; b <= 3; b++) {
+            if (b % 2 === 0) ctx.fillRect(cx + b * 12*S - 5*S, cy - 70*S, 10*S, 16*S);
+        }
+
+        // Pointed roof
+        const roofG = ctx.createLinearGradient(cx, cy - 70*S, cx, cy - 110*S);
+        roofG.addColorStop(0, accent); roofG.addColorStop(1, darkenColor(accent, 30));
+        ctx.fillStyle = roofG;
+        ctx.beginPath();
+        ctx.moveTo(cx - 40*S, cy - 70*S);
+        ctx.lineTo(cx, cy - 112*S);
+        ctx.lineTo(cx + 40*S, cy - 70*S);
+        ctx.closePath(); ctx.fill();
+
+        // Flag on top
+        ctx.strokeStyle = '#8b5e3c'; ctx.lineWidth = 2.5*S;
+        ctx.beginPath(); ctx.moveTo(cx, cy - 112*S); ctx.lineTo(cx, cy - 130*S); ctx.stroke();
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath(); ctx.moveTo(cx, cy - 130*S); ctx.lineTo(cx + 20*S, cy - 122*S); ctx.lineTo(cx, cy - 114*S); ctx.closePath(); ctx.fill();
+
+        ctx.restore();
+    }
+
     init();
 });
+

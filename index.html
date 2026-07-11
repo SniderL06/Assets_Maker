@@ -260,11 +260,149 @@
                     <h2>Retoque y Ajustes</h2>
                 </div>
                 <div class="panel-content">
+                    <!-- ═══════ CHARACTER EDITOR (shown when char/creature active) ═══════ -->
+                    <div id="char-editor-panel" style="display:none;">
+                        <div class="panel-section-title">
+                            <i data-lucide="user-cog"></i>
+                            <h3>Editor de Personaje</h3>
+                        </div>
+
+                        <!-- Character type selector -->
+                        <div class="form-group">
+                            <label>Tipo de Personaje</label>
+                            <div class="char-type-grid" id="char-type-grid">
+                                <!-- Héroes -->
+                                <button class="char-type-btn active" data-type="warrior" title="Guerrero">⚔️</button>
+                                <button class="char-type-btn" data-type="mage" title="Mago">🧙</button>
+                                <button class="char-type-btn" data-type="rogue" title="Pícaro">🗡️</button>
+                                <button class="char-type-btn" data-type="healer" title="Sanador">✚</button>
+                                <button class="char-type-btn" data-type="archer" title="Arquero">🏹</button>
+                                <button class="char-type-btn" data-type="paladin" title="Paladín">🛡️</button>
+                                <!-- NPCs -->
+                                <button class="char-type-btn" data-type="merchant" title="Comerciante">🛒</button>
+                                <button class="char-type-btn" data-type="villager" title="Aldeano">🧑‍🌾</button>
+                                <button class="char-type-btn" data-type="guard" title="Guardia">🪖</button>
+                                <button class="char-type-btn" data-type="noble" title="Noble">👑</button>
+                                <button class="char-type-btn" data-type="elder" title="Anciano">🧓</button>
+                                <button class="char-type-btn" data-type="child" title="Niño">🧒</button>
+                                <button class="char-type-btn" data-type="blacksmith" title="Herrero">🔨</button>
+                                <button class="char-type-btn" data-type="innkeeper" title="Posadero">🍺</button>
+                                <button class="char-type-btn" data-type="witch" title="Bruja">🪄</button>
+                                <button class="char-type-btn" data-type="bandit" title="Bandido">💀</button>
+                                <!-- Creatures -->
+                                <button class="char-type-btn" data-type="slime" title="Slime">🟢</button>
+                                <button class="char-type-btn" data-type="goblin" title="Goblin">👺</button>
+                                <button class="char-type-btn" data-type="skeleton" title="Esqueleto">💀</button>
+                                <button class="char-type-btn" data-type="dragon" title="Dragón">🐉</button>
+                                <button class="char-type-btn" data-type="orc" title="Orco">👹</button>
+                                <button class="char-type-btn" data-type="ghost" title="Fantasma">👻</button>
+                                <button class="char-type-btn" data-type="spider" title="Araña">🕷️</button>
+                                <button class="char-type-btn" data-type="bat" title="Murciélago">🦇</button>
+                                <button class="char-type-btn" data-type="wolf" title="Lobo">🐺</button>
+                                <button class="char-type-btn" data-type="golem" title="Gólem">🪨</button>
+                                <button class="char-type-btn" data-type="boss" title="Boss Final">😈</button>
+                            </div>
+                        </div>
+
+                        <!-- Skin tone -->
+                        <div class="form-group" id="char-skin-group">
+                            <label>Tono de Piel</label>
+                            <div class="skin-swatches">
+                                <div class="skin-swatch selected" data-skin="#fde8d0" style="background:#fde8d0" title="Muy claro"></div>
+                                <div class="skin-swatch" data-skin="#e8b89a" style="background:#e8b89a" title="Claro"></div>
+                                <div class="skin-swatch" data-skin="#c8966a" style="background:#c8966a" title="Medio claro"></div>
+                                <div class="skin-swatch" data-skin="#a07040" style="background:#a07040" title="Medio"></div>
+                                <div class="skin-swatch" data-skin="#7a5030" style="background:#7a5030" title="Oscuro"></div>
+                                <div class="skin-swatch" data-skin="#4a3020" style="background:#4a3020" title="Muy oscuro"></div>
+                                <div class="skin-swatch" data-skin="#4ade80" style="background:#4ade80" title="Verde (Goblin)"></div>
+                                <div class="skin-swatch" data-skin="#5c8c3e" style="background:#5c8c3e" title="Verde oscuro (Orco)"></div>
+                            </div>
+                        </div>
+
+                        <!-- Hair color -->
+                        <div class="form-group" id="char-hair-group">
+                            <label>Color de Cabello</label>
+                            <div class="skin-swatches">
+                                <div class="hair-swatch selected" data-hair="#1a0a00" style="background:#1a0a00" title="Negro"></div>
+                                <div class="hair-swatch" data-hair="#5c3a1e" style="background:#5c3a1e" title="Castaño oscuro"></div>
+                                <div class="hair-swatch" data-hair="#8b5e3c" style="background:#8b5e3c" title="Castaño"></div>
+                                <div class="hair-swatch" data-hair="#c8860a" style="background:#c8860a" title="Cobrizo"></div>
+                                <div class="hair-swatch" data-hair="#f0e060" style="background:#f0e060" title="Rubio"></div>
+                                <div class="hair-swatch" data-hair="#f0f0f0" style="background:#f0f0f0;border:1px solid #555" title="Blanco/Anciano"></div>
+                                <div class="hair-swatch" data-hair="#dc2626" style="background:#dc2626" title="Rojo"></div>
+                                <div class="hair-swatch" data-hair="#7c3aed" style="background:#7c3aed" title="Violeta"></div>
+                            </div>
+                        </div>
+
+                        <!-- Outfit primary color -->
+                        <div class="char-color-row">
+                            <div class="form-group">
+                                <label>Color Principal</label>
+                                <div class="color-picker-wrapper" style="width:100%;height:34px;border-radius:6px;">
+                                    <input type="color" id="char-outfit-primary" value="#1e40af">
+                                    <span class="color-indicator" id="char-outfit-primary-ind" style="background:#1e40af;border-radius:6px;"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Color Acento</label>
+                                <div class="color-picker-wrapper" style="width:100%;height:34px;border-radius:6px;">
+                                    <input type="color" id="char-outfit-accent" value="#fbbf24">
+                                    <span class="color-indicator" id="char-outfit-accent-ind" style="background:#fbbf24;border-radius:6px;"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Body size -->
+                        <div class="adjustment-group">
+                            <div class="adj-header">
+                                <label>Tamaño corporal</label>
+                                <span class="adj-value" id="char-size-val">Normal</span>
+                            </div>
+                            <input type="range" id="char-size-slider" min="0" max="2" step="1" value="1">
+                        </div>
+
+                        <!-- Emotion / pose -->
+                        <div class="form-group">
+                            <label>Estado / Emoción</label>
+                            <div class="emotion-grid" id="char-emotion-grid">
+                                <button class="emotion-btn active" data-emotion="neutral" title="Neutral">😐</button>
+                                <button class="emotion-btn" data-emotion="happy" title="Feliz">😄</button>
+                                <button class="emotion-btn" data-emotion="angry" title="Enojado">😠</button>
+                                <button class="emotion-btn" data-emotion="sad" title="Triste">😢</button>
+                                <button class="emotion-btn" data-emotion="surprised" title="Sorprendido">😮</button>
+                                <button class="emotion-btn" data-emotion="wink" title="Guiño">😉</button>
+                            </div>
+                        </div>
+
+                        <!-- Accessories -->
+                        <div class="form-group">
+                            <label>Accesorios Extra</label>
+                            <div class="accessory-grid" id="char-accessory-grid">
+                                <label class="acc-toggle"><input type="checkbox" id="acc-hat"> 🎩 Sombrero</label>
+                                <label class="acc-toggle"><input type="checkbox" id="acc-cape"> 🦸 Capa</label>
+                                <label class="acc-toggle"><input type="checkbox" id="acc-bag"> 👜 Bolso</label>
+                                <label class="acc-toggle"><input type="checkbox" id="acc-scarf"> 🧣 Bufanda</label>
+                                <label class="acc-toggle"><input type="checkbox" id="acc-glasses"> 👓 Gafas</label>
+                                <label class="acc-toggle"><input type="checkbox" id="acc-weapon"> ⚔️ Arma</label>
+                            </div>
+                        </div>
+
+                        <!-- Regenerate -->
+                        <button class="btn btn-accent btn-full" id="char-regenerate-btn">
+                            <i data-lucide="refresh-cw"></i>
+                            <span>Regenerar Personaje</span>
+                        </button>
+
+                        <div class="divider"></div>
+                    </div>
+
+                    <!-- ═══════ COLOR ADJUSTMENTS ═══════ -->
                     <!-- Filters and Color Shifts -->
                     <div class="panel-section-title">
                         <i data-lucide="sliders-horizontal"></i>
                         <h3>Ajustes de Color</h3>
                     </div>
+
 
                     <div class="adjustment-group">
                         <div class="adj-header">

@@ -476,9 +476,105 @@ document.addEventListener('DOMContentLoaded', () => {
             if (confirm(`¿Cambiar la resolución del lienzo a ${newRes}x${newRes}? Esto podría estirar o recortar la imagen actual.`)) {
                 resizeCanvas(newRes, newRes);
                 saveHistoryState();
+        // Character Editor interactions
+        const charEditorPanel = document.getElementById('char-editor-panel');
+        if (charEditorPanel) {
+            // Type button selection
+            charEditorPanel.querySelectorAll('.char-type-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    charEditorPanel.querySelectorAll('.char-type-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    redrawActiveCharacter();
+                });
+            });
+
+            // Skin tone swatches
+            charEditorPanel.querySelectorAll('.skin-swatch').forEach(sw => {
+                sw.addEventListener('click', () => {
+                    charEditorPanel.querySelectorAll('.skin-swatch').forEach(s => s.classList.remove('selected'));
+                    sw.classList.add('selected');
+                    redrawActiveCharacter();
+                });
+            });
+
+            // Hair swatches
+            charEditorPanel.querySelectorAll('.hair-swatch').forEach(sw => {
+                sw.addEventListener('click', () => {
+                    charEditorPanel.querySelectorAll('.hair-swatch').forEach(s => s.classList.remove('selected'));
+                    sw.classList.add('selected');
+                    redrawActiveCharacter();
+                });
+            });
+
+            // Color inputs
+            document.getElementById('char-outfit-primary').addEventListener('input', (e) => {
+                document.getElementById('char-outfit-primary-ind').style.background = e.target.value;
+                redrawActiveCharacter();
+            });
+            document.getElementById('char-outfit-accent').addEventListener('input', (e) => {
+                document.getElementById('char-outfit-accent-ind').style.background = e.target.value;
+                redrawActiveCharacter();
+            });
+
+            // Body size slider
+            const sizeSlider = document.getElementById('char-size-slider');
+            const sizeVal = document.getElementById('char-size-val');
+            if (sizeSlider) {
+                sizeSlider.addEventListener('input', (e) => {
+                    const val = parseInt(e.target.value);
+                    const labels = ['Delgado / Pequeño', 'Normal', 'Grande / Fuerte'];
+                    sizeVal.textContent = labels[val];
+                    redrawActiveCharacter();
+                });
             }
-        });
+
+            // Emotion / expression
+            charEditorPanel.querySelectorAll('.emotion-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    charEditorPanel.querySelectorAll('.emotion-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    redrawActiveCharacter();
+                });
+            });
+
+            // Accessories checkboxes
+            charEditorPanel.querySelectorAll('.acc-toggle input[type="checkbox"]').forEach(chk => {
+                chk.addEventListener('change', redrawActiveCharacter);
+            });
+
+            // Regenerate button
+            document.getElementById('char-regenerate-btn').addEventListener('click', () => {
+                redrawActiveCharacter();
+                saveHistoryState();
+            });
+        }
     }
+
+    function redrawActiveCharacter() {
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const activeStyleOpt = document.querySelector('.style-option.active');
+        const style = activeStyleOpt ? activeStyleOpt.getAttribute('data-style') : 'pixel';
+
+        const charEditor = document.getElementById('char-editor-panel');
+        const activeTypeBtn = charEditor.querySelector('.char-type-btn.active');
+        const customType = activeTypeBtn ? activeTypeBtn.getAttribute('data-type') : 'warrior';
+        
+        const activeSkin = charEditor.querySelector('.skin-swatch.selected');
+        const customSkin = activeSkin ? activeSkin.getAttribute('data-skin') : '#e8b89a';
+        
+        const activeHair = charEditor.querySelector('.hair-swatch.selected');
+        const customHair = activeHair ? activeHair.getAttribute('data-hair') : '#1a0a00';
+
+        const customPrimary = document.getElementById('char-outfit-primary').value;
+        const customAccent = document.getElementById('char-outfit-accent').value;
+        
+        drawConfiguredCharacter(cx, cy, customType, customSkin, customHair, customPrimary, customAccent, style);
+        updateThreeTexture();
+    }
+
 
     // --- Workspace Navigation ---
     function switchWorkspace(mode) {
@@ -984,24 +1080,39 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (lp.includes('oro') || lp.includes('gold') || lp.includes('luz') || lp.includes('sagrado') || lp.includes('divino')) {
             baseColor = '#d97706'; accentColor = '#fef9c3'; glowColor = 'rgba(251,191,36,0.65)';
         } else if (lp.includes('sombra') || lp.includes('vacio') || lp.includes('oscuro') || lp.includes('dark') || lp.includes('abismo')) {
-            baseColor = '#581c87'; accentColor = '#f472b6'; glowColor = 'rgba(168,85,247,0.6)';
+        baseColor = '#581c87'; accentColor = '#f472b6'; glowColor = 'rgba(168,85,247,0.6)';
         } else if (lp.includes('rayo') || lp.includes('lightning') || lp.includes('electrico') || lp.includes('tormenta')) {
             baseColor = '#eab308'; accentColor = '#e0f2fe'; glowColor = 'rgba(234,179,8,0.7)';
         } else if (lp.includes('veneno') || lp.includes('poison') || lp.includes('acido')) {
             baseColor = '#65a30d'; accentColor = '#d9f99d'; glowColor = 'rgba(101,163,13,0.6)';
         }
 
-
         // ---- Helper: detect asset family from prompt ----
         function matchesAny(keys) { return keys.some(k => lp.includes(k)); }
 
-        // Characters / humanoids
-        const isWarrior   = matchesAny(['guerrero','warrior','knight','caballero','fighter','soldado','paladin','paladin','barbarian','barbaro']);
+        // Humanoids & NPCs
+        const isWarrior   = matchesAny(['guerrero','warrior','knight','caballero','fighter','soldado','paladin','barbarian','barbaro']);
         const isMage      = matchesAny(['mago','mage','wizard','hechicero','brujo','sorcerer','warlock','witch']);
         const isRogue     = matchesAny(['rogue','ladron','thief','asesino','assassin','pirate','pirata','ninja','ranger','arquero']);
         const isHealer    = matchesAny(['curandero','healer','priest','sacerdote','clerigo','cleric','monk','monje']);
-        const isCharacter = isWarrior || isMage || isRogue || isHealer ||
-                            matchesAny(['personaje','character','hero','heroe','heroine','heroina','protagonista','player','jugador','avatar','npc']);
+        const isArcher    = matchesAny(['archer','arquero','tirador','hunter','cazador']);
+        const isPaladin   = matchesAny(['paladin','paladín','templario','templar']);
+        
+        // Normal NPCs
+        const isMerchant  = matchesAny(['comerciante','merchant','vendedor','shopkeeper','mercader']);
+        const isVillager  = matchesAny(['aldeano','villager','campesino','peasant','citizen','ciudadano','granjar','farmer']);
+        const isGuard     = matchesAny(['guardia','guard','soldier','soldado','vigilante','police']);
+        const isNoble     = matchesAny(['noble','rey','king','queen','reina','prince','principe','princess','princesa','lord','lady','duke']);
+        const isElder     = matchesAny(['anciano','elder','viejo','old man','grandpa','abuelo','abuela']);
+        const isChild     = matchesAny(['niño','nino','child','kid','boy','girl','chico','chica']);
+        const isBlacksmith= matchesAny(['herrero','blacksmith','forjador']);
+        const isInnkeeper = matchesAny(['posadero','innkeeper','tabernero']);
+        const isBandit    = matchesAny(['bandido','bandit','ladron','thug','pirata','pirate','outlaw']);
+        
+        const isCharacter = isWarrior || isMage || isRogue || isHealer || isArcher || isPaladin ||
+                            isMerchant || isVillager || isGuard || isNoble || isElder || isChild ||
+                            isBlacksmith || isInnkeeper || isBandit ||
+                            matchesAny(['personaje','character','hero','heroe','heroine','heroina','protagonista','player','jugador','avatar','npc','persona','human','humano','hombre','mujer']);
 
         // Creatures & monsters
         const isSlime     = matchesAny(['slime','limo','gelatina','blob','ameba']);
@@ -1018,6 +1129,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const isCreature  = isSlime || isGoblin || isSkeleton || isDragon || isOrc ||
                             isGhost || isSpider || isBat || isWolf || isGolem || isBoss ||
                             matchesAny(['monstruo','monster','criatura','creature','enemy','enemigo','bestia','beast','evil','maligno']);
+
+        // Show/Hide Character Editor Panel in Right Panel
+        const charEditor = document.getElementById('char-editor-panel');
+        if (isCharacter || isCreature) {
+            if (charEditor) {
+                charEditor.style.display = 'block';
+                // Auto-select type button
+                let typeToSelect = 'warrior';
+                if (isWarrior) typeToSelect = 'warrior';
+                else if (isMage) typeToSelect = 'mage';
+                else if (isRogue) typeToSelect = 'rogue';
+                else if (isHealer) typeToSelect = 'healer';
+                else if (isArcher) typeToSelect = 'archer';
+                else if (isPaladin) typeToSelect = 'paladin';
+                else if (isMerchant) typeToSelect = 'merchant';
+                else if (isVillager) typeToSelect = 'villager';
+                else if (isGuard) typeToSelect = 'guard';
+                else if (isNoble) typeToSelect = 'noble';
+                else if (isElder) typeToSelect = 'elder';
+                else if (isChild) typeToSelect = 'child';
+                else if (isBlacksmith) typeToSelect = 'blacksmith';
+                else if (isInnkeeper) typeToSelect = 'innkeeper';
+                else if (isBandit) typeToSelect = 'bandit';
+                else if (isSlime) typeToSelect = 'slime';
+                else if (isGoblin) typeToSelect = 'goblin';
+                else if (isSkeleton) typeToSelect = 'skeleton';
+                else if (isDragon) typeToSelect = 'dragon';
+                else if (isOrc) typeToSelect = 'orc';
+                else if (isGhost) typeToSelect = 'ghost';
+                else if (isSpider) typeToSelect = 'spider';
+                else if (isBat) typeToSelect = 'bat';
+                else if (isWolf) typeToSelect = 'wolf';
+                else if (isGolem) typeToSelect = 'golem';
+                else if (isBoss) typeToSelect = 'boss';
+
+                const typeBtn = charEditor.querySelector(`.char-type-btn[data-type="${typeToSelect}"]`);
+                if (typeBtn) {
+                    charEditor.querySelectorAll('.char-type-btn').forEach(b => b.classList.remove('active'));
+                    typeBtn.classList.add('active');
+                }
+            }
+        } else {
+            if (charEditor) charEditor.style.display = 'none';
+        }
 
         // Weapons & items
         const isSword     = matchesAny(['espada','sword','katana','sable','daga','dagger','cuchillo','knife','hacha','axe','lanza','spear','pica','pike','mangual','flail']);
@@ -1036,59 +1191,77 @@ document.addEventListener('DOMContentLoaded', () => {
         const isBuilding  = matchesAny(['torre','tower','castillo','castle','edificio','building','puerta','door','muralla','wall']);
         const isTile      = matchesAny(['terreno','bloque','isométrico','isometric','tile','suelo','ground','cesped','grass','nieve','snow','lava','desierto']);
 
-        // ---- Draw depending on detected category ----
-        if (isCharacter) {
-            if      (isWarrior) drawCharacterWarrior(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isMage)    drawCharacterMage(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isRogue)   drawCharacterRogue(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isHealer)  drawCharacterHealer(cx, cy, baseColor, accentColor, glowColor, style);
-            else                drawCharacterWarrior(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isCreature) {
-            if      (isSlime)    drawCreatureSlime(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isGoblin)   drawCreatureGoblin(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isSkeleton) drawCreatureSkeleton(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isDragon)   drawCreatureDragon(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isOrc)      drawCreatureOrc(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isGhost)    drawCreatureGhost(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isSpider)   drawCreatureSpider(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isBat)      drawCreatureBat(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isWolf)     drawCreatureWolf(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isGolem)    drawCreatureGolem(cx, cy, baseColor, accentColor, glowColor, style);
-            else if (isBoss)     drawCreatureBoss(cx, cy, baseColor, accentColor, glowColor, style);
-            else                 drawCreatureGoblin(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isSword) {
-            drawSwordAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isChest) {
-            drawChestAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isShield) {
-            drawShieldAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isPotion || isPoison) {
-            drawPotionAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isTile) {
-            drawIsometricBlockAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isBow) {
-            drawBowAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isHelmet) {
-            drawHelmetAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isRing) {
-            drawRingAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isStaff) {
-            drawStaffAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isKey) {
-            drawKeyAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isScroll) {
-            drawScrollAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isCoin) {
-            drawCoinAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isTree) {
-            drawTreeAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else if (isBuilding) {
-            drawBuildingAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        } else {
-            // Default: Magic Orb
-            drawGemAsset(cx, cy, baseColor, accentColor, glowColor, style);
-        }
+        // Check if we use custom parameters from active editor
+        const isCustomActive = charEditor && charEditor.style.display === 'block';
+        if (isCustomActive) {
+            const activeTypeBtn = charEditor.querySelector('.char-type-btn.active');
+            const customType = activeTypeBtn ? activeTypeBtn.getAttribute('data-type') : 'warrior';
+            
+            const activeSkin = charEditor.querySelector('.skin-swatch.selected');
+            const customSkin = activeSkin ? activeSkin.getAttribute('data-skin') : '#e8b89a';
+            
+            const activeHair = charEditor.querySelector('.hair-swatch.selected');
+            const customHair = activeHair ? activeHair.getAttribute('data-hair') : '#1a0a00';
 
+            const customPrimary = document.getElementById('char-outfit-primary').value;
+            const customAccent = document.getElementById('char-outfit-accent').value;
+            
+            // Invoke dynamic drawer
+            drawConfiguredCharacter(cx, cy, customType, customSkin, customHair, customPrimary, customAccent, style);
+        } else {
+            // ---- Draw depending on detected category ----
+            if (isCharacter) {
+                if      (isWarrior) drawCharacterWarrior(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isMage)    drawCharacterMage(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isRogue)   drawCharacterRogue(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isHealer)  drawCharacterHealer(cx, cy, baseColor, accentColor, glowColor, style);
+                else                drawCharacterWarrior(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isCreature) {
+                if      (isSlime)    drawCreatureSlime(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isGoblin)   drawCreatureGoblin(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isSkeleton) drawCreatureSkeleton(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isDragon)   drawCreatureDragon(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isOrc)      drawCreatureOrc(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isGhost)    drawCreatureGhost(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isSpider)   drawCreatureSpider(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isBat)      drawCreatureBat(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isWolf)     drawCreatureWolf(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isGolem)    drawCreatureGolem(cx, cy, baseColor, accentColor, glowColor, style);
+                else if (isBoss)     drawCreatureBoss(cx, cy, baseColor, accentColor, glowColor, style);
+                else                 drawCreatureGoblin(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isSword) {
+                drawSwordAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isChest) {
+                drawChestAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isShield) {
+                drawShieldAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isPotion || isPoison) {
+                drawPotionAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isTile) {
+                drawIsometricBlockAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isBow) {
+                drawBowAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isHelmet) {
+                drawHelmetAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isRing) {
+                drawRingAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isStaff) {
+                drawStaffAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isKey) {
+                drawKeyAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isScroll) {
+                drawScrollAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isCoin) {
+                drawCoinAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isTree) {
+                drawTreeAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isBuilding) {
+                drawBuildingAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else {
+                // Default: Magic Orb
+                drawGemAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            }
+        }
         
         if (style === 'realistic' || style === 'vector' || style === 'cartoon') {
             threeMeshSelect.value = 'mesh_3d';
@@ -1100,12 +1273,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Add to saved library
         saveAssetToLibrary(prompt);
-    }
-
-    // ============================================================
-    // HIGH-QUALITY PROCEDURAL DRAWING ENGINE
-    // ============================================================
-
     /** Noise helper — simple pseudo-random offset for texture grain */
     function noiseOffset(seed, amp) {
         return (Math.sin(seed * 127.1 + 311.7) * 43758.5453) % amp - amp / 2;
@@ -3043,6 +3210,245 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================================
     // CHARACTER DRAWING ENGINE
     // ============================================================
+
+    /** Main router for character and creature customization in the live editor */
+    function drawConfiguredCharacter(cx, cy, type, skin, hair, primary, accent, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        const px = style === 'pixel';
+        const glow = primary + '55';
+
+        // Size multiplier from slider
+        const sizeVal = parseInt(document.getElementById('char-size-slider')?.value || 1);
+        let scale = 1.0;
+        if (sizeVal === 0) scale = 0.85; // thin/small
+        if (sizeVal === 2) scale = 1.15; // strong/big
+
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+        ctx.translate(-cx, -cy);
+
+        // Fetch checkboxed accessories
+        const hasHat = document.getElementById('acc-hat')?.checked;
+        const hasCape = document.getElementById('acc-cape')?.checked;
+        const hasBag = document.getElementById('acc-bag')?.checked;
+        const hasScarf = document.getElementById('acc-scarf')?.checked;
+        const hasGlasses = document.getElementById('acc-glasses')?.checked;
+        const hasWeapon = document.getElementById('acc-weapon')?.checked;
+
+        // Fetch emotion
+        const activeEmotionBtn = document.querySelector('#char-emotion-grid .emotion-btn.active');
+        const emotion = activeEmotionBtn ? activeEmotionBtn.getAttribute('data-emotion') : 'neutral';
+
+        // If it's a monster/creature
+        const monsterTypes = ['slime', 'goblin', 'skeleton', 'dragon', 'orc', 'ghost', 'spider', 'bat', 'wolf', 'golem', 'boss'];
+        if (monsterTypes.includes(type)) {
+            if (type === 'slime') drawCreatureSlime(cx, cy, primary, accent, glow, style);
+            else if (type === 'goblin') drawCreatureGoblin(cx, cy, primary, accent, glow, style);
+            else if (type === 'skeleton') drawCreatureSkeleton(cx, cy, primary, accent, glow, style);
+            else if (type === 'dragon') drawCreatureDragon(cx, cy, primary, accent, glow, style);
+            else if (type === 'orc') drawCreatureOrc(cx, cy, primary, accent, glow, style);
+            else if (type === 'ghost') drawCreatureGhost(cx, cy, primary, accent, glow, style);
+            else if (type === 'spider') drawCreatureSpider(cx, cy, primary, accent, glow, style);
+            else if (type === 'bat') drawCreatureBat(cx, cy, primary, accent, glow, style);
+            else if (type === 'wolf') drawCreatureWolf(cx, cy, primary, accent, glow, style);
+            else if (type === 'golem') drawCreatureGolem(cx, cy, primary, accent, glow, style);
+            else if (type === 'boss') drawCreatureBoss(cx, cy, primary, accent, glow, style);
+            ctx.restore();
+            return;
+        }
+
+        // Draw Cape Behind (if enabled)
+        if (hasCape) {
+            ctx.fillStyle = darkenColor(primary, 40);
+            ctx.beginPath();
+            ctx.roundRect(cx - 24*S, cy - 10*S, 48*S, 65*S, px ? 0 : 8*S);
+            ctx.fill();
+        }
+
+        // Humanoid body configuration options
+        let opts = { bodyH: 56*S, bodyW: 32*S };
+        if (type === 'child') {
+            opts.bodyH = 38*S; opts.bodyW = 26*S; opts.legH = 26*S; opts.headR = 24*S;
+        } else if (type === 'guard' || type === 'paladin' || type === 'blacksmith') {
+            opts.bodyW = 38*S; opts.bodyH = 60*S;
+        }
+
+        const pantsColor = darkenColor(primary, 50);
+
+        // Core base humanoid
+        const { torsoTop, torsoBot, headR, bodyW, armW } = drawHumanoidBase(cx, cy - 15*S, skin, primary, pantsColor, S, px, opts);
+
+        // Render hair
+        ctx.fillStyle = hair;
+        if (type !== 'guard' && type !== 'paladin') {
+            // Hair cap
+            ctx.beginPath();
+            ctx.ellipse(cx, torsoTop - headR * 0.65, headR * 1.05, headR * 0.7, 0, Math.PI, 0);
+            ctx.fill();
+            // Hair sides/back
+            ctx.beginPath();
+            if (type === 'elder') {
+                // Bald top, grey hair sides
+                ctx.fillStyle = '#d1d5db';
+                ctx.ellipse(cx - headR*0.7, torsoTop - headR*0.4, headR*0.4, headR*0.6, 0.2, 0, Math.PI*2);
+                ctx.ellipse(cx + headR*0.7, torsoTop - headR*0.4, headR*0.4, headR*0.6, -0.2, 0, Math.PI*2);
+            } else {
+                ctx.ellipse(cx - headR*0.8, torsoTop - headR*0.3, headR*0.35, headR*0.6, 0.1, 0, Math.PI*2);
+                ctx.ellipse(cx + headR*0.8, torsoTop - headR*0.3, headR*0.35, headR*0.6, -0.1, 0, Math.PI*2);
+            }
+            ctx.fill();
+        }
+
+        // Apply accessories dynamically
+        if (hasHat || type === 'mage' || type === 'noble' || type === 'merchant') {
+            ctx.fillStyle = type === 'noble' ? '#d4a017' : darkenColor(primary, 30);
+            if (type === 'noble') {
+                // Crown
+                ctx.beginPath();
+                ctx.moveTo(cx - headR*0.9, torsoTop - headR*0.9);
+                ctx.lineTo(cx - headR*0.9, torsoTop - headR*1.3);
+                ctx.lineTo(cx - headR*0.4, torsoTop - headR*1.1);
+                ctx.lineTo(cx, torsoTop - headR*1.5);
+                ctx.lineTo(cx + headR*0.4, torsoTop - headR*1.1);
+                ctx.lineTo(cx + headR*0.9, torsoTop - headR*1.3);
+                ctx.lineTo(cx + headR*0.9, torsoTop - headR*0.9);
+                ctx.closePath(); ctx.fill();
+            } else if (type === 'mage') {
+                // Wizard hat
+                ctx.beginPath();
+                ctx.moveTo(cx, torsoTop - headR * 2.3);
+                ctx.lineTo(cx - headR * 1.1, torsoTop - headR * 0.5);
+                ctx.lineTo(cx + headR * 1.1, torsoTop - headR * 0.5);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = accent;
+                ctx.fillRect(cx - headR*0.8, torsoTop - headR*0.7, headR*1.6, 4*S);
+            } else {
+                // Generic top hat / cap
+                ctx.fillRect(cx - headR*0.8, torsoTop - headR*1.3, headR*1.6, 12*S);
+                ctx.fillRect(cx - headR*1.2, torsoTop - headR*0.9, headR*2.4, 4*S);
+            }
+        }
+
+        // Scarf
+        if (hasScarf) {
+            ctx.fillStyle = '#dc2626';
+            ctx.beginPath();
+            ctx.roundRect(cx - 15*S, torsoTop - 2*S, 30*S, 8*S, 3*S);
+            ctx.fill();
+            // Hanging tail
+            ctx.fillRect(cx + 4*S, torsoTop + 4*S, 8*S, 18*S);
+        }
+
+        // Glasses
+        if (hasGlasses) {
+            ctx.strokeStyle = '#d4a017'; ctx.lineWidth = 2*S;
+            ctx.beginPath();
+            ctx.arc(cx - headR*0.4, torsoTop - headR*0.4, 6*S, 0, Math.PI*2);
+            ctx.arc(cx + headR*0.4, torsoTop - headR*0.4, 6*S, 0, Math.PI*2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(cx - headR*0.1, torsoTop - headR*0.4);
+            ctx.lineTo(cx + headR*0.1, torsoTop - headR*0.4);
+            ctx.stroke();
+        }
+
+        // Bag / satchel
+        if (hasBag || type === 'merchant') {
+            ctx.fillStyle = '#78350f';
+            ctx.beginPath();
+            ctx.roundRect(cx - bodyW*0.6, torsoBot - 16*S, 14*S, 14*S, 3*S);
+            ctx.fill();
+            // Shoulder strap
+            ctx.strokeStyle = '#541c00'; ctx.lineWidth = 2*S;
+            ctx.beginPath();
+            ctx.moveTo(cx - bodyW/2, torsoTop + 8*S);
+            ctx.lineTo(cx + bodyW*0.2, torsoBot - 10*S);
+            ctx.stroke();
+        }
+
+        // Weapon or tools in hand
+        if (hasWeapon || type === 'warrior' || type === 'guard' || type === 'paladin' || type === 'blacksmith') {
+            ctx.save();
+            ctx.translate(cx + bodyW/2 + armW + 4*S, torsoTop + 36*S);
+            if (type === 'blacksmith') {
+                // Hammer
+                ctx.fillStyle = '#4b5563'; ctx.fillRect(-8*S, -16*S, 16*S, 8*S);
+                ctx.fillStyle = '#78350f'; ctx.fillRect(-2*S, -8*S, 4*S, 24*S);
+            } else {
+                // Sword
+                ctx.fillStyle = '#9ca3af'; ctx.fillRect(-2*S, -45*S, 4*S, 45*S);
+                ctx.fillStyle = '#d4a017'; ctx.fillRect(-8*S, -5*S, 16*S, 3*S);
+                ctx.fillStyle = '#4b5563'; ctx.fillRect(-1.5*S, 0, 3*S, 10*S);
+            }
+            ctx.restore();
+        }
+
+        // Innkeeper mug
+        if (type === 'innkeeper') {
+            ctx.fillStyle = '#d97706'; ctx.fillRect(cx - bodyW*0.7, torsoTop + 24*S, 10*S, 12*S);
+            ctx.fillStyle = '#fff'; ctx.fillRect(cx - bodyW*0.7, torsoTop + 20*S, 10*S, 4*S); // Foam
+        }
+
+        // Render specific emotions overriding base smile
+        const eyeY = torsoTop - headR * 0.4;
+        const eyeSpacing = headR * 0.4;
+
+        if (emotion !== 'neutral') {
+            // Overwrite face features area
+            ctx.fillStyle = skin;
+            ctx.beginPath();
+            ctx.arc(cx, torsoTop - headR*0.35, headR*0.7, 0, Math.PI*2);
+            ctx.fill();
+
+            // Eyes per emotion
+            ctx.fillStyle = '#1a0a0a';
+            ctx.strokeStyle = '#1a0a0a';
+            ctx.lineWidth = 2*S;
+            ctx.lineCap = 'round';
+
+            if (emotion === 'angry') {
+                ctx.beginPath(); ctx.moveTo(cx - eyeSpacing - 5*S, eyeY - 4*S); ctx.lineTo(cx - eyeSpacing + 3*S, eyeY - 1*S); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx + eyeSpacing + 5*S, eyeY - 4*S); ctx.lineTo(cx + eyeSpacing - 3*S, eyeY - 1*S); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx - eyeSpacing, eyeY, 3*S, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + eyeSpacing, eyeY, 3*S, 0, Math.PI*2); ctx.fill();
+            } else if (emotion === 'happy') {
+                // Curved upward arcs
+                ctx.beginPath(); ctx.arc(cx - eyeSpacing, eyeY + 1*S, 5*S, Math.PI, 0); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx + eyeSpacing, eyeY + 1*S, 5*S, Math.PI, 0); ctx.stroke();
+            } else if (emotion === 'sad') {
+                // Curved downward arcs
+                ctx.beginPath(); ctx.arc(cx - eyeSpacing, eyeY + 3*S, 4*S, 0, Math.PI, true); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx + eyeSpacing, eyeY + 3*S, 4*S, 0, Math.PI, true); ctx.stroke();
+            } else if (emotion === 'surprised') {
+                // Wide circles
+                ctx.beginPath(); ctx.arc(cx - eyeSpacing, eyeY, 4.5*S, 0, Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx + eyeSpacing, eyeY, 4.5*S, 0, Math.PI*2); ctx.stroke();
+            } else if (emotion === 'wink') {
+                ctx.beginPath(); ctx.arc(cx - eyeSpacing, eyeY, 3.5*S, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(cx + eyeSpacing - 4*S, eyeY); ctx.lineTo(cx + eyeSpacing + 4*S, eyeY); ctx.stroke();
+            }
+
+            // Mouth per emotion
+            if (emotion === 'happy') {
+                ctx.fillStyle = '#991b1b';
+                ctx.beginPath(); ctx.arc(cx, eyeY + headR*0.35, headR*0.25, 0, Math.PI); ctx.fill();
+            } else if (emotion === 'sad') {
+                ctx.beginPath(); ctx.arc(cx, eyeY + headR*0.45, headR*0.2, Math.PI, 0); ctx.stroke();
+            } else if (emotion === 'angry') {
+                ctx.beginPath(); ctx.moveTo(cx - 6*S, eyeY + headR*0.4); ctx.lineTo(cx + 6*S, eyeY + headR*0.4); ctx.stroke();
+            } else if (emotion === 'surprised') {
+                ctx.beginPath(); ctx.arc(cx, eyeY + headR*0.4, 5*S, 0, Math.PI*2); ctx.stroke();
+            }
+        }
+
+        ctx.restore();
+    }
+
+    // ============================================================
+    // CHARACTER DRAWING ENGINE
+    // ============================================================
+
 
     /** Core humanoid body builder used by all character types */
     function drawHumanoidBase(cx, cy, skin, bodyCol, legCol, S, pixelated, opts = {}) {

@@ -658,6 +658,136 @@ input[type="range"]::-webkit-slider-thumb:hover {
     transform: scale(1.2);
 }
 
+/* ═══════════════════════════════════════════
+   CHARACTER EDITOR PANEL
+═══════════════════════════════════════════ */
+
+/* Character type emoji grid */
+.char-type-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+}
+
+.char-type-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 1.15rem;
+    line-height: 1;
+    padding: 5px 2px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.char-type-btn:hover {
+    background: rgba(168,85,247,0.15);
+    border-color: var(--primary);
+    transform: scale(1.12);
+}
+.char-type-btn.active {
+    background: rgba(168,85,247,0.25);
+    border-color: var(--primary);
+    box-shadow: 0 0 8px rgba(168,85,247,0.35);
+    transform: scale(1.08);
+}
+
+/* Skin / Hair swatches */
+.skin-swatches {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.skin-swatch,
+.hair-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    flex-shrink: 0;
+}
+.skin-swatch:hover,
+.hair-swatch:hover {
+    transform: scale(1.25);
+    border-color: rgba(255,255,255,0.5);
+}
+.skin-swatch.selected,
+.hair-swatch.selected {
+    border-color: white;
+    box-shadow: 0 0 0 2px rgba(168,85,247,0.8);
+    transform: scale(1.15);
+}
+
+/* Color row (2 columns) */
+.char-color-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+/* Emotion grid */
+.emotion-grid {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+.emotion-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 1.3rem;
+    padding: 3px 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1;
+}
+.emotion-btn:hover {
+    background: rgba(168,85,247,0.15);
+    border-color: var(--primary);
+    transform: scale(1.15);
+}
+.emotion-btn.active {
+    background: rgba(168,85,247,0.25);
+    border-color: var(--primary);
+    box-shadow: 0 0 8px rgba(168,85,247,0.3);
+}
+
+/* Accessory toggles */
+.accessory-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+}
+.acc-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 7px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    transition: all 0.15s ease;
+    user-select: none;
+}
+.acc-toggle:hover {
+    border-color: var(--primary);
+    color: var(--text-main);
+    background: rgba(168,85,247,0.1);
+}
+.acc-toggle input[type="checkbox"] {
+    accent-color: var(--primary);
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+}
 
 /* Viewport Area */
 .viewport-wrapper {

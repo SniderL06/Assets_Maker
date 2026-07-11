@@ -1276,6 +1276,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Add to saved library
         saveAssetToLibrary(prompt);
+    }
+    
     /** Noise helper — simple pseudo-random offset for texture grain */
     function noiseOffset(seed, amp) {
         return (Math.sin(seed * 127.1 + 311.7) * 43758.5453) % amp - amp / 2;
@@ -1313,7 +1315,14 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = layers; i >= 1; i--) {
             const alpha = 0.08 * i;
             const g = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r * (1 + i * 0.35));
-            g.addColorStop(0,   glowColor.replace(/,[^,]+\)$/, `,${alpha})`));
+            // Safely swap out alpha in rgb/rgba strings
+            let rgbaParts = glowColor.split(',');
+            if (rgbaParts.length > 3) {
+                rgbaParts[3] = ` ${alpha})`;
+                g.addColorStop(0, rgbaParts.join(','));
+            } else {
+                g.addColorStop(0, glowColor);
+            }
             g.addColorStop(1,   'rgba(0,0,0,0)');
             ctx.fillStyle = g;
             ctx.beginPath();
@@ -3568,6 +3577,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const b = Math.max(0, parseInt(hex.slice(5,7),16) - amount);
         return `rgb(${r},${g},${b})`;
     }
+    /** Safely replace the alpha channel in an rgba() string e.g. glowAlpha(glow, 0.8) */
+    function glowAlpha(rgbaStr, alpha) {
+        const parts = rgbaStr.split(',');
+        if (parts.length >= 4) {
+            parts[3] = ' ' + alpha + ')';
+            return parts.join(',');
+        }
+        return rgbaStr;
+    }
 
     // ─── WARRIOR ───────────────────────────────────────────────────────────
     function drawCharacterWarrior(cx, cy, base, acc, glow, style) {
@@ -3684,7 +3702,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.beginPath(); ctx.moveTo(cx, torsoTop); ctx.lineTo(cx, torsoBot + 28*S); ctx.stroke();
 
         // Glowing rune symbol on chest
-        ctx.fillStyle = glow.replace(/,\s*[\d.]+\)/, ', 0.8)');
+        ctx.fillStyle = glowAlpha(glow, 0.8);
         ctx.font = `bold ${18*S}px serif`;
         ctx.textAlign = 'center';
         ctx.fillText('✦', cx, torsoTop + bodyW * 0.55);
@@ -4034,7 +4052,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.beginPath(); ctx.ellipse(cx - 9*S, cy - 54*S, 7*S, 7*S, 0, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.ellipse(cx + 9*S, cy - 54*S, 7*S, 7*S, 0, 0, Math.PI*2); ctx.fill();
         // Glow in eyes
-        const eyeGlow = glow.replace(/,\s*[\d.]+\)/, ', 0.9)');
+        const eyeGlow = glowAlpha(glow, 0.9);
         ctx.fillStyle = eyeGlow;
         ctx.beginPath(); ctx.arc(cx - 9*S, cy - 54*S, 4*S, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(cx + 9*S, cy - 54*S, 4*S, 0, Math.PI*2); ctx.fill();
@@ -4296,7 +4314,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.beginPath(); ctx.ellipse(cx - 16*S, cy - 16*S, 10*S, 12*S, 0, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.ellipse(cx + 16*S, cy - 16*S, 10*S, 12*S, 0, 0, Math.PI*2); ctx.fill();
         // Glow in eyes
-        ctx.fillStyle = glow.replace(/,[\d.]+\)/, ', 0.9)');
+        ctx.fillStyle = glowAlpha(glow, 0.9);
         ctx.beginPath(); ctx.arc(cx - 16*S, cy - 16*S, 5*S, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(cx + 16*S, cy - 16*S, 5*S, 0, Math.PI*2); ctx.fill();
         // Wailing mouth
@@ -4354,7 +4372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         eyePositions.forEach(([ex, ey, er]) => {
             ctx.fillStyle = '#111';
             ctx.beginPath(); ctx.arc(cx + ex, cy + ey, er, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = glow.replace(/,[\d.]+\)/, ', 0.8)');
+            ctx.fillStyle = glowAlpha(glow, 0.8);
             ctx.beginPath(); ctx.arc(cx + ex, cy + ey, er * 0.5, 0, Math.PI*2); ctx.fill();
         });
 
@@ -4482,7 +4500,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.beginPath(); ctx.moveTo(cx - 56*S, cy - 50*S); ctx.lineTo(cx - 62*S, cy - 62*S); ctx.lineTo(cx - 48*S, cy - 52*S); ctx.closePath(); ctx.fill();
 
         // Eyes (glowing)
-        ctx.fillStyle = glow.replace(/,[\d.]+\)/, ', 0.9)');
+        ctx.fillStyle = glowAlpha(glow, 0.9);
         ctx.beginPath(); ctx.ellipse(cx - 44*S, cy - 36*S, 6*S, 5*S, 0.2, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = '#111';
         ctx.beginPath(); ctx.ellipse(cx - 44*S, cy - 36*S, 3*S, 4*S, 0.2, 0, Math.PI*2); ctx.fill();
@@ -4557,7 +4575,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.strokeRect(cx-26*S, cy-72*S, 52*S, 56*S);
 
         // Glowing eyes (rectangular)
-        ctx.fillStyle = glow.replace(/,[\d.]+\)/, ', 0.9)');
+        ctx.fillStyle = glowAlpha(glow, 0.9);
         ctx.fillRect(cx - 18*S, cy - 58*S, 10*S, 6*S);
         ctx.fillRect(cx + 8*S, cy - 58*S, 10*S, 6*S);
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
@@ -4578,7 +4596,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const demonSkin = darkenColor(base, 30);
         const hornsCol = darkenColor(base, 60);
-        const glowStr = glow.replace(/,[\d.]+\)/, ', 0.95)');
+        const glowStr = glowAlpha(glow, 0.95);
 
         // Cape/wings
         [-1,1].forEach(dir => {
@@ -4730,7 +4748,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath(); ctx.ellipse(cx, cy, 55*S, 14*S, 0, 0, Math.PI*2); ctx.fill();
             // Spots
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            [[0,-22],[−20,-12],[20,-12],[−8,-32],[8,-32]].forEach(([dx,dy]) => {
+            [[0,-22],[-20,-12],[20,-12],[-8,-32],[8,-32]].forEach(([dx,dy]) => {
                 ctx.beginPath(); ctx.arc(cx+dx*S, cy+dy*S, 7*S, 0, Math.PI*2); ctx.fill();
             });
         } else if (isFlower) {
@@ -4825,7 +4843,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Windows
         [[cx, cy - 30*S],[cx - 20*S, cy + 5*S],[cx + 20*S, cy + 5*S]].forEach(([wx, wy]) => {
-            ctx.fillStyle = glow.replace(/,[\d.]+\)/, ', 0.7)');
+            ctx.fillStyle = glowAlpha(glow, 0.7);
             ctx.beginPath(); ctx.arc(wx, wy - 4*S, 9*S, Math.PI, 0); ctx.rect(wx - 9*S, wy - 4*S, 18*S, 10*S); ctx.fill();
             ctx.strokeStyle = darkenColor(stone, 40); ctx.lineWidth = 2*S;
             ctx.beginPath(); ctx.arc(wx, wy - 4*S, 9*S, Math.PI, 0); ctx.stroke();
@@ -4859,4 +4877,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
     init();
 });
-

@@ -476,6 +476,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (confirm(`¿Cambiar la resolución del lienzo a ${newRes}x${newRes}? Esto podría estirar o recortar la imagen actual.`)) {
                 resizeCanvas(newRes, newRes);
                 saveHistoryState();
+            }
+        });
+        
         // Character Editor interactions
         const charEditorPanel = document.getElementById('char-editor-panel');
         if (charEditorPanel) {

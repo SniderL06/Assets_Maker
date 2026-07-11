@@ -161,14 +161,32 @@
                     <div class="tool-separator"></div>
 
                     <div class="tool-group">
-                        <div class="color-picker-wrapper">
+                        <div class="color-picker-wrapper" title="Color Principal (clic para cambiar)">
                             <input type="color" id="primary-color" value="#a855f7" title="Color Principal">
                             <span class="color-indicator" style="background-color: #a855f7"></span>
+                        </div>
+                        <!-- Quick color swatches -->
+                        <div class="color-swatches" id="color-swatches">
+                            <div class="swatch" style="background:#ffffff" data-color="#ffffff" title="Blanco"></div>
+                            <div class="swatch" style="background:#ef4444" data-color="#ef4444" title="Rojo"></div>
+                            <div class="swatch" style="background:#fb923c" data-color="#fb923c" title="Naranja"></div>
+                            <div class="swatch" style="background:#fbbf24" data-color="#fbbf24" title="Dorado"></div>
+                            <div class="swatch" style="background:#4ade80" data-color="#4ade80" title="Verde"></div>
+                            <div class="swatch" style="background:#22d3ee" data-color="#22d3ee" title="Cian"></div>
+                            <div class="swatch" style="background:#3b82f6" data-color="#3b82f6" title="Azul"></div>
+                            <div class="swatch" style="background:#a855f7" data-color="#a855f7" title="Violeta"></div>
+                            <div class="swatch" style="background:#ec4899" data-color="#ec4899" title="Rosa"></div>
+                            <div class="swatch" style="background:#000000" data-color="#000000" title="Negro"></div>
                         </div>
                         <div class="brush-size-control" title="Tamaño del Pincel">
                             <i data-lucide="circle" class="size-icon-small"></i>
                             <input type="range" id="brush-size" min="1" max="50" value="8">
                             <span id="brush-size-val">8px</span>
+                        </div>
+                        <div class="brush-size-control" title="Opacidad del Pincel">
+                            <i data-lucide="droplets" class="size-icon-small"></i>
+                            <input type="range" id="brush-opacity" min="1" max="100" value="100">
+                            <span id="brush-opacity-val">100%</span>
                         </div>
                     </div>
 
@@ -183,6 +201,7 @@
                         </button>
                     </div>
                 </div>
+
 
                 <!-- Main viewport wrapper -->
                 <div class="viewport-wrapper">

@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeTool: 'brush', // 'brush', 'eraser', 'picker', 'fill', 'crop'
         primaryColor: '#a855f7',
         brushSize: 8,
+        brushOpacity: 1,
         canvasWidth: 256,
         canvasHeight: 256,
         gridVisible: false,
@@ -114,6 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDrawing = false;
     let lastX = 0;
     let lastY = 0;
+    
+    // Filter overlay canvas (sits on top of editor canvas for CSS filter preview)
+    let filterOverlay = null;
 
     // Three.js variables
     let scene, camera, renderer, currentMesh, materials = {}, orbitControls;
@@ -160,9 +164,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentStyle = activeStyleOpt ? activeStyleOpt.getAttribute('data-style') : 'pixel';
         if (currentStyle === 'pixel') {
             ctx.imageSmoothingEnabled = false;
+            canvas.style.imageRendering = 'pixelated';
         } else {
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
+            canvas.style.imageRendering = 'auto';
         }
         
         // Draw back saved content or scale it
@@ -183,6 +189,23 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.style.height = `${displayHeight}px`;
         canvasContainer.style.width = `${displayWidth}px`;
         canvasContainer.style.height = `${displayHeight}px`;
+
+        // Recreate filter overlay to match canvas display size
+        if (filterOverlay) filterOverlay.remove();
+        filterOverlay = document.createElement('canvas');
+        filterOverlay.style.cssText = `
+            position: absolute;
+            top: 0; left: 0;
+            width: ${displayWidth}px;
+            height: ${displayHeight}px;
+            pointer-events: none;
+            border-radius: 4px;
+        `;
+        filterOverlay.width = width;
+        filterOverlay.height = height;
+        canvasContainer.appendChild(filterOverlay);
+        // Reset any current filter preview
+        applyRealtimeFilters();
     }
 
     function clearCanvas() {
@@ -327,7 +350,40 @@ document.addEventListener('DOMContentLoaded', () => {
             brushSizeVal.textContent = `${state.brushSize}px`;
         });
 
+        // Brush opacity
+        const brushOpacitySlider = document.getElementById('brush-opacity');
+        const brushOpacityVal = document.getElementById('brush-opacity-val');
+        if (brushOpacitySlider) {
+            brushOpacitySlider.addEventListener('input', (e) => {
+                state.brushOpacity = parseInt(e.target.value) / 100;
+                brushOpacityVal.textContent = `${e.target.value}%`;
+            });
+        }
+
+        // Quick color swatches
+        const swatches = document.querySelectorAll('#color-swatches .swatch');
+        swatches.forEach(swatch => {
+            swatch.addEventListener('click', () => {
+                const color = swatch.getAttribute('data-color');
+                state.primaryColor = color;
+                primaryColorInput.value = color;
+                colorIndicator.style.backgroundColor = color;
+                // Update selected state
+                swatches.forEach(s => s.classList.remove('selected'));
+                swatch.classList.add('selected');
+                // Switch to brush if not already on a drawing tool
+                if (state.activeTool !== 'brush' && state.activeTool !== 'eraser' && state.activeTool !== 'fill') {
+                    setTool('brush');
+                }
+            });
+        });
+
         primaryColorInput.addEventListener('input', (e) => {
+            state.primaryColor = e.target.value;
+            colorIndicator.style.backgroundColor = state.primaryColor;
+        });
+        // 'change' fires when user closes the color picker (some browsers)
+        primaryColorInput.addEventListener('change', (e) => {
             state.primaryColor = e.target.value;
             colorIndicator.style.backgroundColor = state.primaryColor;
         });
@@ -468,12 +524,26 @@ document.addEventListener('DOMContentLoaded', () => {
             tools[key].classList.toggle('active', key === toolName);
         });
 
+        // Update canvas cursor per tool
+        const cursors = {
+            brush: 'crosshair',
+            eraser: 'cell',
+            picker: 'copy',
+            fill: 'cell',
+            crop: 'default'
+        };
+        canvas.style.cursor = cursors[toolName] || 'crosshair';
+
+        // Reset composite operation to default when switching tools
+        ctx.globalCompositeOperation = 'source-over';
+
         if (toolName === 'crop') {
             initCropOverlay();
         } else {
             cropBox.style.display = 'none';
         }
     }
+
 
     function updateStylePreset() {
         const activeStyleOpt = document.querySelector('.style-option.active');
@@ -562,27 +632,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isDrawing) return;
         const pos = getMousePos(e);
         
+        ctx.save();
         ctx.beginPath();
         ctx.moveTo(lastX, lastY);
         ctx.lineTo(pos.x, pos.y);
         
         if (state.activeTool === 'brush') {
             ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = state.brushOpacity;
             ctx.strokeStyle = state.primaryColor;
             ctx.lineWidth = state.brushSize;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.filter = 'none';
             ctx.stroke();
         } else if (state.activeTool === 'eraser') {
             ctx.globalCompositeOperation = 'destination-out';
+            ctx.globalAlpha = state.brushOpacity;
             ctx.lineWidth = state.brushSize;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.stroke();
         }
+        ctx.restore();
 
         lastX = pos.x;
         lastY = pos.y;
+        
+        // Live-update filter overlay
+        applyRealtimeFilters();
     }
 
     function stopDrawing() {
@@ -716,33 +796,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Realtime Filter Application (CSS Filters based) ---
+    // --- Realtime Filter Application (overlay canvas approach) ---
     function applyRealtimeFilters() {
-        const filters = `
-            brightness(${state.adjustments.brightness}%) 
-            contrast(${state.adjustments.contrast}%) 
-            saturate(${state.adjustments.saturation}%) 
-            hue-rotate(${state.adjustments.hue}deg)
-        `;
-        canvas.style.filter = filters;
+        if (!filterOverlay) return;
+        const ovCtx = filterOverlay.getContext('2d');
+        
+        // Check if any adjustment is non-default
+        const hasFilter = state.adjustments.brightness !== 100 ||
+                          state.adjustments.contrast !== 100 ||
+                          state.adjustments.saturation !== 100 ||
+                          state.adjustments.hue !== 0;
+        
+        ovCtx.clearRect(0, 0, filterOverlay.width, filterOverlay.height);
+        
+        if (hasFilter) {
+            const filterStr = `brightness(${state.adjustments.brightness}%) contrast(${state.adjustments.contrast}%) saturate(${state.adjustments.saturation}%) hue-rotate(${state.adjustments.hue}deg)`;
+            ovCtx.filter = filterStr;
+            ovCtx.drawImage(canvas, 0, 0);
+            filterOverlay.style.opacity = '1';
+        } else {
+            filterOverlay.style.opacity = '0';
+        }
     }
 
     function bakeFiltersToCanvas() {
+        if (!filterOverlay) return;
+        const hasFilter = state.adjustments.brightness !== 100 ||
+                          state.adjustments.contrast !== 100 ||
+                          state.adjustments.saturation !== 100 ||
+                          state.adjustments.hue !== 0;
+        if (!hasFilter) return;
+        
+        const filterStr = `brightness(${state.adjustments.brightness}%) contrast(${state.adjustments.contrast}%) saturate(${state.adjustments.saturation}%) hue-rotate(${state.adjustments.hue}deg)`;
+        
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = canvas.width;
         tempCanvas.height = canvas.height;
         const tempCtx = tempCanvas.getContext('2d');
-        
-        // Draw filtered image on temp canvas
-        tempCtx.filter = canvas.style.filter;
+        tempCtx.filter = filterStr;
         tempCtx.drawImage(canvas, 0, 0);
         
-        // Reset canvas element CSS filters
+        // Reset state
+        state.adjustments = { brightness: 100, contrast: 100, saturation: 100, hue: 0 };
         canvas.style.filter = 'none';
         
-        // Copy back baked pixels
+        // Bake back
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(tempCanvas, 0, 0);
+        
+        // Hide overlay
+        const ovCtx = filterOverlay.getContext('2d');
+        ovCtx.clearRect(0, 0, filterOverlay.width, filterOverlay.height);
+        filterOverlay.style.opacity = '0';
         
         updateThreeTexture();
     }
@@ -750,11 +855,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function resetAdjustmentSliders() {
         state.adjustments = { brightness: 100, contrast: 100, saturation: 100, hue: 0 };
         Object.keys(adjSliders).forEach(key => {
-            adjSliders[key].value = 100;
-            if (key === 'hue') adjSliders[key].value = 0;
+            adjSliders[key].value = state.adjustments[key];
             const suffix = key === 'hue' ? '°' : '%';
             adjVals[key].textContent = `${state.adjustments[key]}${suffix}`;
         });
+        // Hide filter overlay
+        if (filterOverlay) {
+            const ovCtx = filterOverlay.getContext('2d');
+            ovCtx.clearRect(0, 0, filterOverlay.width, filterOverlay.height);
+            filterOverlay.style.opacity = '0';
+        }
         canvas.style.filter = 'none';
     }
 

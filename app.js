@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Application State ---
     const state = {
         currentWorkspace: '2d', // '2d', '2.5d', '3d'
-        activeTool: 'brush', // 'brush', 'eraser', 'picker', 'fill', 'crop'
+        activeTool: 'pan', // 'pan', 'brush', 'eraser', 'picker', 'fill', 'crop'
         primaryColor: '#a855f7',
         brushSize: 8,
         brushOpacity: 1,
@@ -74,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Tools
     const tools = {
+        pan: document.getElementById('tool-pan'),
         brush: document.getElementById('tool-brush'),
         eraser: document.getElementById('tool-eraser'),
         picker: document.getElementById('tool-picker'),
@@ -319,9 +320,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Tools
         Object.keys(tools).forEach(key => {
-            tools[key].addEventListener('click', () => {
-                setTool(key);
-            });
+            if (tools[key]) {
+                tools[key].addEventListener('click', () => setTool(key));
+            }
+        });
+
+        // Keyboard shortcuts (global)
+        document.addEventListener('keydown', (e) => {
+            // Skip when typing in an input/textarea
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            const k = e.key.toLowerCase();
+            if (k === 'v') setTool('pan');
+            else if (k === 'b') setTool('brush');
+            else if (k === 'e') setTool('eraser');
+            else if (k === 'i') setTool('picker');
+            else if (k === 'g') setTool('fill');
+            else if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); undo(); }
+            else if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); }
         });
 
         // Crop cancel/confirm
@@ -664,11 +679,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function setTool(toolName) {
         state.activeTool = toolName;
         Object.keys(tools).forEach(key => {
-            tools[key].classList.toggle('active', key === toolName);
+            if (tools[key]) tools[key].classList.toggle('active', key === toolName);
         });
 
         // Update canvas cursor per tool
         const cursors = {
+            pan: 'grab',
             brush: 'crosshair',
             eraser: 'cell',
             picker: 'copy',
@@ -756,6 +772,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startDrawing(e) {
+        // Pan mode: don't draw — let the container handle natural scrolling
+        if (state.activeTool === 'pan') return;
+
         isDrawing = true;
         const pos = getMousePos(e);
         lastX = pos.x;
@@ -772,7 +791,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function draw(e) {
-        if (!isDrawing) return;
+        // Pan mode never draws
+        if (state.activeTool === 'pan' || !isDrawing) return;
         const pos = getMousePos(e);
         
         ctx.save();
@@ -1093,6 +1113,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function generateProceduralAsset(prompt) {
         const activeStyleOpt = document.querySelector('.style-option.active');
         const style = activeStyleOpt ? activeStyleOpt.getAttribute('data-style') : 'pixel';
+        
+        // Mark that an asset has now been generated so 3D uses canvas texture
+        canvas.dataset.hasAsset = 'true';
         
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
@@ -2863,20 +2886,19 @@ document.addEventListener('DOMContentLoaded', () => {
         materials.canvasTex.generateMipmaps = true;
         materials.canvasTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
         
-        // Materials creation
+        // Materials creation — NO bumpMap (same-texture bumpMap darkens the mesh)
         materials.customMaterial = new THREE.MeshStandardMaterial({
             map: materials.canvasTex,
-            roughness: state.material.roughness,
-            metalness: state.material.metalness,
-            bumpMap: materials.canvasTex,
-            bumpScale: state.material.bumpScale,
+            roughness: 0.45,
+            metalness: 0.05,
             transparent: true,
+            alphaTest: 0.05,
             side: THREE.DoubleSide,
-            envMapIntensity: 1.0
+            envMapIntensity: 0.8
         });
 
-        // Load polygonal mesh initially
-        updateThreeMesh('mesh_3d');
+        // Load polygonal mesh initially — with a placeholder so the viewer isn't black on load
+        showPlaceholder3D();
 
         // Start render loop
         animateThreeJS();
@@ -3259,18 +3281,101 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         else {
             // --- 3D Gem / Default Orb ---
-            const gemGeo = new THREE.OctahedronGeometry(0.55, 0);
-            const gem = new THREE.Mesh(gemGeo, materials.customMaterial);
+            // Use canvas texture ONLY if something has been generated, otherwise use a stylized material
+            const hasAsset = canvas.dataset.hasAsset === 'true';
+            const gemMat = hasAsset
+                ? materials.customMaterial
+                : new THREE.MeshStandardMaterial({
+                    color: 0xa855f7,
+                    roughness: 0.05,
+                    metalness: 0.1,
+                    emissive: new THREE.Color(0x7c3aed),
+                    emissiveIntensity: 0.45,
+                    transparent: true,
+                    opacity: 0.92
+                });
+            const gemGeo = new THREE.OctahedronGeometry(0.55, 2);
+            const gem = new THREE.Mesh(gemGeo, gemMat);
             gem.position.y = 0.1;
             gem.castShadow = true;
             gem.receiveShadow = true;
             group.add(gem);
+
+            // Floating glow ring under the gem
+            const ringGeo = new THREE.TorusGeometry(0.55, 0.025, 12, 64);
+            const ringMat = new THREE.MeshStandardMaterial({
+                color: 0xa855f7,
+                emissive: new THREE.Color(0xa855f7),
+                emissiveIntensity: 0.9,
+                roughness: 0.1,
+                metalness: 0.5
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.y = -0.3;
+            ring.rotation.x = Math.PI / 2;
+            group.add(ring);
         }
         
         return group;
     }
 
+    // Shows a beautiful placeholder gem in the 3D viewer before any asset is generated
+    function showPlaceholder3D() {
+        if (currentMesh) scene.remove(currentMesh);
+        const group = new THREE.Group();
+
+        // Main gem — polished purple octahedron
+        const gemGeo = new THREE.OctahedronGeometry(0.6, 2);
+        const gemMat = new THREE.MeshStandardMaterial({
+            color: 0xa855f7,
+            roughness: 0.04,
+            metalness: 0.15,
+            emissive: new THREE.Color(0x7c3aed),
+            emissiveIntensity: 0.5,
+            transparent: true,
+            opacity: 0.93,
+            side: THREE.DoubleSide
+        });
+        const gem = new THREE.Mesh(gemGeo, gemMat);
+        gem.position.y = 0.15;
+        gem.castShadow = true;
+        gem.receiveShadow = true;
+        group.add(gem);
+
+        // Glow ring beneath the gem
+        const ringGeo = new THREE.TorusGeometry(0.6, 0.022, 12, 72);
+        const ringMat = new THREE.MeshStandardMaterial({
+            color: 0xc084fc,
+            emissive: new THREE.Color(0xc084fc),
+            emissiveIntensity: 1.2,
+            roughness: 0.05,
+            metalness: 0.6
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.position.y = -0.35;
+        ring.rotation.x = Math.PI / 2;
+        group.add(ring);
+
+        // Small orbiting sphere (accent)
+        const orbitGeo = new THREE.SphereGeometry(0.07, 16, 16);
+        const orbitMat = new THREE.MeshStandardMaterial({
+            color: 0xf0abfc,
+            emissive: new THREE.Color(0xe879f9),
+            emissiveIntensity: 0.8,
+            roughness: 0.1
+        });
+        const orb = new THREE.Mesh(orbitGeo, orbitMat);
+        orb.position.set(0.85, 0.2, 0);
+        orb.castShadow = true;
+        group.add(orb);
+
+        currentMesh = group;
+        currentMesh.userData.isPlaceholder = true;
+        scene.add(currentMesh);
+    }
+
     function updateThreeMesh(meshType) {
+
         if (currentMesh) scene.remove(currentMesh);
 
         let geometry;
@@ -3342,9 +3447,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (materials.canvasTex) {
             materials.canvasTex.needsUpdate = true;
         }
-        if (state.currentWorkspace === '3d' && (threeMeshSelect.value === 'voxel_3d' || threeMeshSelect.value === 'mesh_3d')) {
-            updateThreeMesh(threeMeshSelect.value);
-        }
+        // Only regenerate the full mesh when EXPLICITLY asked (e.g. after AI generation),
+        // not on every brush stroke — that caused the mesh to flicker/reset while painting.
     }
 
     function updateThreeMaterial() {
@@ -3367,8 +3471,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function animateThreeJS() {
         requestAnimationFrame(animateThreeJS);
         
-        if (autoRotate && currentMesh) {
-            currentMesh.rotation.y += 0.01;
+        const t = performance.now() * 0.001; // seconds
+
+        if (currentMesh) {
+            // Always gently rotate the placeholder gem
+            if (currentMesh.userData.isPlaceholder) {
+                currentMesh.rotation.y = t * 0.5;
+                currentMesh.position.y = Math.sin(t * 1.2) * 0.07; // gentle bobbing
+            } else if (autoRotate) {
+                currentMesh.rotation.y += 0.008;
+            }
         }
         
         if (orbitControls) {
@@ -3379,6 +3491,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderer.render(scene, camera);
         }
     }
+
 
     // --- Export Logic ---
     function exportAsset() {

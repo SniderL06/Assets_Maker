@@ -375,32 +375,79 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Quick color swatches
-        const swatches = document.querySelectorAll('#color-swatches .swatch');
-        swatches.forEach(swatch => {
-            swatch.addEventListener('click', () => {
-                const color = swatch.getAttribute('data-color');
+        // Setup swatch helper
+        function setupSwatch(swatchElement) {
+            swatchElement.addEventListener('click', () => {
+                const color = swatchElement.getAttribute('data-color');
                 state.primaryColor = color;
                 primaryColorInput.value = color;
                 colorIndicator.style.backgroundColor = color;
-                // Update selected state
-                swatches.forEach(s => s.classList.remove('selected'));
-                swatch.classList.add('selected');
+                
+                // Update selected state across all swatches
+                document.querySelectorAll('#color-swatches .swatch').forEach(s => s.classList.remove('selected'));
+                swatchElement.classList.add('selected');
+                
                 // Switch to brush if not already on a drawing tool
                 if (state.activeTool !== 'brush' && state.activeTool !== 'eraser' && state.activeTool !== 'fill') {
                     setTool('brush');
                 }
             });
-        });
+        }
+
+        // Quick color swatches initialization
+        const initialSwatches = document.querySelectorAll('#color-swatches .swatch');
+        initialSwatches.forEach(swatch => setupSwatch(swatch));
+
+        // Add custom color button trigger
+        const swatchAddBtn = document.getElementById('swatch-add');
+        if (swatchAddBtn) {
+            swatchAddBtn.addEventListener('click', () => {
+                primaryColorInput.click();
+            });
+        }
 
         primaryColorInput.addEventListener('input', (e) => {
-            state.primaryColor = e.target.value;
-            colorIndicator.style.backgroundColor = state.primaryColor;
+            const val = e.target.value;
+            state.primaryColor = val;
+            colorIndicator.style.backgroundColor = val;
         });
-        // 'change' fires when user closes the color picker (some browsers)
+
+        // Add dynamically chosen colors to swatches row
         primaryColorInput.addEventListener('change', (e) => {
-            state.primaryColor = e.target.value;
-            colorIndicator.style.backgroundColor = state.primaryColor;
+            const newColor = e.target.value;
+            state.primaryColor = newColor;
+            colorIndicator.style.backgroundColor = newColor;
+
+            // Check if this color already exists in swatches to avoid duplication
+            let existing = false;
+            document.querySelectorAll('#color-swatches .swatch').forEach(s => {
+                if (s.getAttribute('data-color').toLowerCase() === newColor.toLowerCase()) {
+                    existing = s;
+                }
+            });
+
+            if (existing) {
+                existing.click();
+            } else {
+                // Create a new dynamic swatch
+                const newSwatch = document.createElement('div');
+                newSwatch.className = 'swatch selected';
+                newSwatch.style.background = newColor;
+                newSwatch.setAttribute('data-color', newColor);
+                newSwatch.title = `Color: ${newColor}`;
+                
+                // Insert before the plus button
+                const parent = document.getElementById('color-swatches');
+                if (parent && swatchAddBtn) {
+                    parent.insertBefore(newSwatch, swatchAddBtn);
+                    setupSwatch(newSwatch);
+                    
+                    // Unselect others
+                    document.querySelectorAll('#color-swatches .swatch').forEach(s => {
+                        if (s !== newSwatch) s.classList.remove('selected');
+                    });
+                }
+            }
         });
 
         btnToggleGrid.addEventListener('click', () => {

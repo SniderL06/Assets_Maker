@@ -129,14 +129,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function init() {
         // Setup Canvas Dimensions
         resizeCanvas(256, 256);
-        clearCanvas();
-        saveHistoryState();
-        
-        // Initial drawing background
-        drawInitialPlaceholder();
-
-        // Init 3D Viewport (Three.js)
         initThreeJS();
+        drawInitialPlaceholder();
+        populateModelSearchResults(""); // Pre-populate search grid on load
+        saveHistoryState();
 
         // Event listeners
         setupEventListeners();
@@ -221,46 +217,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function drawInitialPlaceholder() {
-        // Draw a beautiful default crystal or sword asset
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        const cx = canvas.width / 2;
-        const cy = canvas.height / 2;
-        
-        // Drawing a beautiful pixel art gem
-        ctx.shadowColor = 'rgba(168, 85, 247, 0.5)';
-        ctx.shadowBlur = 10;
-        
-        const gradient = ctx.createRadialGradient(cx, cy, 10, cx, cy, 80);
-        gradient.addColorStop(0, '#d8b4fe');
-        gradient.addColorStop(0.3, '#a855f7');
-        gradient.addColorStop(0.8, '#701a75');
-        gradient.addColorStop(1, 'rgba(0,0,0,0)');
-        
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - 70);
-        ctx.lineTo(cx + 50, cy - 20);
-        ctx.lineTo(cx + 40, cy + 40);
-        ctx.lineTo(cx, cy + 70);
-        ctx.lineTo(cx - 40, cy + 40);
-        ctx.lineTo(cx - 50, cy - 20);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Core highlight
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.moveTo(cx - 10, cy - 50);
-        ctx.lineTo(cx + 10, cy - 50);
-        ctx.lineTo(cx + 25, cy - 20);
-        ctx.lineTo(cx, cy - 30);
-        ctx.lineTo(cx - 25, cy - 20);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Reset shadow
-        ctx.shadowBlur = 0;
+        // Draw a clean, minimal pixel grid pattern to represent an empty canvas
+        const size = 16;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < canvas.width; x += size) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, canvas.height);
+            ctx.stroke();
+        }
+        for (let y = 0; y < canvas.height; y += size) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.stroke();
+        }
+
+        // Beautiful placeholder text instructing the user
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.font = '500 12px "Plus Jakarta Sans", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Lienzo Vacío', canvas.width / 2, canvas.height / 2 - 10);
+        ctx.font = '400 10px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.fillText('Usa IA Forge o Buscar 3D para comenzar', canvas.width / 2, canvas.height / 2 + 10);
+
         updateThreeTexture();
     }
 
@@ -1603,12 +1587,14 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = pixelated ? '#78350f' : gG2;
             ctx.fillRect(cx - Math.round(4 * S), cy + Math.round(16 * S), Math.round(8 * S), Math.round(28 * S));
 
-            // Pommel
+            // Pommel — sits directly below the grip, connected
             const pomR2 = Math.round(6 * S);
-            const pomG2 = pixelated ? acc : (() => { const g = ctx.createRadialGradient(cx-2,cy+Math.round(46*S)-2,1,cx,cy+Math.round(46*S),pomR2); g.addColorStop(0,'#fff'); g.addColorStop(0.5,acc); g.addColorStop(1,adjustBrightness(acc,-40)); return g; })();
+            const gripBottomY = cy + Math.round(16 * S) + Math.round(28 * S); // grip top + grip height
+            const pomCY = gripBottomY + pomR2; // flush against grip bottom
+            const pomG2 = pixelated ? acc : (() => { const g = ctx.createRadialGradient(cx-2,pomCY-2,1,cx,pomCY,pomR2); g.addColorStop(0,'#fff'); g.addColorStop(0.5,acc); g.addColorStop(1,adjustBrightness(acc,-40)); return g; })();
             ctx.fillStyle = pomG2;
             ctx.beginPath();
-            ctx.arc(cx, cy + Math.round(46 * S), pomR2, 0, Math.PI * 2);
+            ctx.arc(cx, pomCY, pomR2, 0, Math.PI * 2);
             ctx.fill();
 
             // Blade with glow
@@ -3027,10 +3013,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const bladeMat = new THREE.MeshStandardMaterial({
             color: elementColor,
-            roughness: 0.15,
-            metalness: 0.95,
-            emissive: isGlowing ? new THREE.Color(elementColor) : new THREE.Color(0x000000),
-            emissiveIntensity: isGlowing ? 0.6 : 0
+            roughness: 0.35,   // more roughness = visible under lights without env map
+            metalness: 0.55,   // was 0.95, high metalness needs env map or it goes black
+            emissive: new THREE.Color(elementColor),
+            emissiveIntensity: isGlowing ? 0.45 : 0.08 // always some glow so it's visible
         });
 
         if (prompt.includes('espada') || prompt.includes('sword') || prompt.includes('arma') || prompt.includes('hoja') || prompt.includes('katana')) {
@@ -3324,50 +3310,50 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentMesh) scene.remove(currentMesh);
         const group = new THREE.Group();
 
-        // Main gem — polished purple octahedron
-        const gemGeo = new THREE.OctahedronGeometry(0.6, 2);
+        // Main gem — sharp faceted diamond (detail=0 gives clean angular faces)
+        const gemGeo = new THREE.OctahedronGeometry(0.6, 0);
         const gemMat = new THREE.MeshStandardMaterial({
             color: 0xa855f7,
-            roughness: 0.04,
-            metalness: 0.15,
-            emissive: new THREE.Color(0x7c3aed),
-            emissiveIntensity: 0.5,
+            roughness: 0.08,
+            metalness: 0.1,
+            emissive: new THREE.Color(0x6d28d9),
+            emissiveIntensity: 0.55,
             transparent: true,
-            opacity: 0.93,
-            side: THREE.DoubleSide
+            opacity: 0.95,
+            flatShading: true  // keep the sharp faceted look
         });
         const gem = new THREE.Mesh(gemGeo, gemMat);
         gem.position.y = 0.15;
         gem.castShadow = true;
-        gem.receiveShadow = true;
         group.add(gem);
 
+        // A second smaller gem offset for depth
+        const gem2Geo = new THREE.OctahedronGeometry(0.22, 0);
+        const gem2Mat = new THREE.MeshStandardMaterial({
+            color: 0xc084fc,
+            roughness: 0.05,
+            metalness: 0.1,
+            emissive: new THREE.Color(0xa855f7),
+            emissiveIntensity: 0.7,
+            flatShading: true
+        });
+        const gem2 = new THREE.Mesh(gem2Geo, gem2Mat);
+        gem2.position.set(0.55, 0.4, 0.1);
+        gem2.castShadow = true;
+        group.add(gem2);
+
         // Glow ring beneath the gem
-        const ringGeo = new THREE.TorusGeometry(0.6, 0.022, 12, 72);
+        const ringGeo = new THREE.TorusGeometry(0.55, 0.018, 10, 64);
         const ringMat = new THREE.MeshStandardMaterial({
             color: 0xc084fc,
             emissive: new THREE.Color(0xc084fc),
-            emissiveIntensity: 1.2,
-            roughness: 0.05,
-            metalness: 0.6
+            emissiveIntensity: 1.5,
+            roughness: 0.05
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.position.y = -0.35;
+        ring.position.y = -0.38;
         ring.rotation.x = Math.PI / 2;
         group.add(ring);
-
-        // Small orbiting sphere (accent)
-        const orbitGeo = new THREE.SphereGeometry(0.07, 16, 16);
-        const orbitMat = new THREE.MeshStandardMaterial({
-            color: 0xf0abfc,
-            emissive: new THREE.Color(0xe879f9),
-            emissiveIntensity: 0.8,
-            roughness: 0.1
-        });
-        const orb = new THREE.Mesh(orbitGeo, orbitMat);
-        orb.position.set(0.85, 0.2, 0);
-        orb.castShadow = true;
-        group.add(orb);
 
         currentMesh = group;
         currentMesh.userData.isPlaceholder = true;
@@ -5289,50 +5275,43 @@ document.addEventListener('DOMContentLoaded', () => {
         const w = canvas.width;
         const h = canvas.height;
 
-        // 1. Draw a clean high-contrast outlines for cartoon/pixel style
+        // 1. Clean black outlines for cartoon/pixel style (destination-over = draws behind existing pixels)
         if (style === 'cartoon' || style === 'pixel') {
             ctx.save();
-            ctx.shadowColor = 'rgba(0,0,0,0.2)';
-            ctx.shadowBlur = style === 'pixel' ? 1 : 4;
-            
-            // Draw silhouette in 8 directions to construct shadow outlines
-            const offset = style === 'pixel' ? Math.max(1, w / 128) : Math.max(2, w / 128);
+            const offset = style === 'pixel' ? Math.max(1, Math.round(w / 128)) : Math.max(2, Math.round(w / 100));
             ctx.globalCompositeOperation = 'destination-over';
-            for (let x = -offset; x <= offset; x += offset) {
-                for (let y = -offset; y <= offset; y += offset) {
-                    if (x !== 0 || y !== 0) {
-                        ctx.drawImage(tempCanvas, x, y);
+            ctx.globalAlpha = 1;
+            // Draw solid black silhouette behind the image
+            for (let dx = -offset; dx <= offset; dx += offset) {
+                for (let dy = -offset; dy <= offset; dy += offset) {
+                    if (dx !== 0 || dy !== 0) {
+                        ctx.drawImage(tempCanvas, dx, dy);
                     }
                 }
             }
             ctx.restore();
         }
 
-        // 2. High-quality Noise Grain texturing (adds texture detail)
-        if (style === 'realistic' || style === 'cartoon') {
+        // 2. Very subtle noise grain — much less aggressive (was causing ugly grey wash)
+        if (style === 'realistic') {
             ctx.save();
             ctx.globalCompositeOperation = 'overlay';
-            ctx.globalAlpha = style === 'realistic' ? 0.08 : 0.04;
-            
+            ctx.globalAlpha = 0.04; // was 0.08, now very subtle
             for (let i = 0; i < w; i += 2) {
                 for (let j = 0; j < h; j += 2) {
-                    if (Math.random() > 0.5) {
-                        ctx.fillStyle = '#ffffff';
-                    } else {
-                        ctx.fillStyle = '#000000';
-                    }
+                    ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
                     ctx.fillRect(i, j, 2, 2);
                 }
             }
             ctx.restore();
         }
 
-        // 3. Volumetric vignette/lighting gradient pass
+        // 3. Very subtle vignette (source-atop = only affects existing pixels, safe)
         ctx.save();
         ctx.globalCompositeOperation = 'source-atop';
-        const grad = ctx.createRadialGradient(w/2, h/2, w/4, w/2, h/2, w/2);
-        grad.addColorStop(0, 'rgba(255,255,255,0.05)');
-        grad.addColorStop(1, 'rgba(0,0,0,0.15)');
+        const grad = ctx.createRadialGradient(w/2, h/2, w * 0.3, w/2, h/2, w * 0.52);
+        grad.addColorStop(0, 'rgba(255,255,255,0.03)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.10)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, w, h);
         ctx.restore();

@@ -117,6 +117,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDrawing = false;
     let lastX = 0;
     let lastY = 0;
+    let panX = 0;
+    let panY = 0;
+    let isPanning = false;
+    let startPanX = 0;
+    let startPanY = 0;
     
     // Filter overlay canvas (sits on top of editor canvas for CSS filter preview)
     let filterOverlay = null;
@@ -417,8 +422,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         document.getElementById('btn-center-view').addEventListener('click', () => {
-            canvas.style.transform = `scale(1) translate(0px, 0px)`;
             state.zoom = 1;
+            panX = 0;
+            panY = 0;
+            updateCanvasTransform();
         });
 
         // Generate AI Asset Trigger
@@ -750,10 +757,28 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.dispatchEvent(mouseEvent);
         }, {passive: true});
 
-        canvas.addEventListener('touchend', () => {
-            const mouseEvent = new MouseEvent('mouseup', {});
-            canvas.dispatchEvent(mouseEvent);
-        });
+        // Zoom on Mouse Wheel over the Canvas Container
+        canvasContainer.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 0.08;
+            if (e.deltaY < 0) {
+                state.zoom = Math.min(15, state.zoom + state.zoom * zoomSpeed);
+            } else {
+                state.zoom = Math.max(0.5, state.zoom - state.zoom * zoomSpeed);
+            }
+            updateCanvasTransform();
+        }, { passive: false });
+    }
+
+    function updateCanvasTransform() {
+        canvas.style.transform = `scale(${state.zoom}) translate(${panX}px, ${panY}px)`;
+        // Keep grid helper aligned
+        if (canvasGridHelper) {
+            canvasGridHelper.style.transform = `scale(${state.zoom}) translate(${panX}px, ${panY}px)`;
+        }
+        if (filterOverlay) {
+            filterOverlay.style.transform = `scale(${state.zoom}) translate(${panX}px, ${panY}px)`;
+        }
     }
 
     function getMousePos(evt) {
@@ -769,8 +794,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startDrawing(e) {
-        // Pan mode: don't draw — let the container handle natural scrolling
-        if (state.activeTool === 'pan') return;
+        // Pan mode: start dragging the canvas view instead of drawing
+        if (state.activeTool === 'pan') {
+            isPanning = true;
+            startPanX = e.clientX - panX * state.zoom;
+            startPanY = e.clientY - panY * state.zoom;
+            canvas.style.cursor = 'grabbing';
+            return;
+        }
 
         isDrawing = true;
         const pos = getMousePos(e);
@@ -788,6 +819,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function draw(e) {
+        // Handle canvas Panning/Dragging in pan tool mode
+        if (state.activeTool === 'pan' && isPanning) {
+            panX = (e.clientX - startPanX) / state.zoom;
+            panY = (e.clientY - startPanY) / state.zoom;
+            updateCanvasTransform();
+            return;
+        }
+
         // Pan mode never draws
         if (state.activeTool === 'pan' || !isDrawing) return;
         const pos = getMousePos(e);
@@ -826,6 +865,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function stopDrawing() {
+        if (isPanning) {
+            isPanning = false;
+            canvas.style.cursor = 'grab';
+        }
         if (isDrawing) {
             isDrawing = false;
             saveHistoryState();
@@ -2767,17 +2810,34 @@ document.addEventListener('DOMContentLoaded', () => {
             
             item.addEventListener('click', () => {
                 state.currentAssetId = asset.id;
+                
+                // Mark that we have an active asset loaded
+                canvas.dataset.hasAsset = 'true';
+                
+                // Match resolution to style first
+                const style = asset.style || 'pixel';
+                const targetRes = style === 'pixel' ? 64 : (style === 'realistic' ? 512 : 256);
+                resizeCanvas(targetRes, targetRes);
+                
                 loadCanvasFromURL(asset.dataURL);
+                
                 document.querySelectorAll('.gallery-item').forEach(i => i.classList.remove('active'));
                 item.classList.add('active');
                 
                 promptInput.value = asset.prompt;
+                
                 // update style option view
-                const styleOpt = document.querySelector(`.style-option[data-style="${asset.style}"]`);
+                const styleOpt = document.querySelector(`.style-option[data-style="${style}"]`);
                 if (styleOpt) {
                     styleOptions.forEach(o => o.classList.remove('active'));
                     styleOpt.classList.add('active');
                 }
+                
+                // Automatically regenerate 3D view
+                setTimeout(() => {
+                    updateThreeMesh(threeMeshSelect.value);
+                    updateThreeTexture();
+                }, 100);
             });
 
             galleryContainer.appendChild(item);

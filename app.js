@@ -43,7 +43,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const workspaceTabs = {
         '2d': document.getElementById('tab-2d'),
         '2.5d': document.getElementById('tab-25d'),
-        '3d': document.getElementById('tab-3d')
+        '3d': document.getElementById('tab-3d'),
+        'split': document.getElementById('tab-split')
     };
     const canvasContainer = document.getElementById('canvas-container');
     const canvas = document.getElementById('editor-canvas');
@@ -551,6 +552,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 saveHistoryState();
             });
         }
+
+        // Left Panel Tab Switching (AI Forge / Buscar 3D)
+        const leftTabAi = document.getElementById('left-tab-ai');
+        const leftTabSearch = document.getElementById('left-tab-search');
+        const aiForgeContent = document.getElementById('ai-forge-content');
+        const modelSearchContent = document.getElementById('model-search-content');
+
+        if (leftTabAi && leftTabSearch && aiForgeContent && modelSearchContent) {
+            leftTabAi.addEventListener('click', () => {
+                leftTabAi.classList.add('active');
+                leftTabSearch.classList.remove('active');
+                aiForgeContent.style.display = 'block';
+                modelSearchContent.style.display = 'none';
+            });
+
+            leftTabSearch.addEventListener('click', () => {
+                leftTabSearch.classList.add('active');
+                leftTabAi.classList.remove('active');
+                aiForgeContent.style.display = 'none';
+                modelSearchContent.style.display = 'block';
+                populateModelSearchResults(""); // load initial models list
+            });
+        }
+
+        // 3D Model Search button & input
+        const modelSearchBtn = document.getElementById('model-search-btn');
+        const modelSearchInput = document.getElementById('model-search-input');
+        if (modelSearchBtn && modelSearchInput) {
+            modelSearchBtn.addEventListener('click', () => {
+                populateModelSearchResults(modelSearchInput.value);
+            });
+            modelSearchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    populateModelSearchResults(modelSearchInput.value);
+                }
+            });
+        }
     }
 
     function redrawActiveCharacter() {
@@ -582,26 +620,32 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Workspace Navigation ---
     function switchWorkspace(mode) {
         state.currentWorkspace = mode;
+        const viewportWrapper = document.querySelector('.viewport-wrapper');
         
         // Update Tabs UI
         Object.keys(workspaceTabs).forEach(key => {
-            workspaceTabs[key].classList.toggle('active', key === mode);
+            if (workspaceTabs[key]) {
+                workspaceTabs[key].classList.toggle('active', key === mode);
+            }
         });
 
         // Show/Hide relevant Viewports
-        if (mode === '3d') {
+        if (mode === 'split') {
+            if (viewportWrapper) viewportWrapper.classList.add('split-mode');
+            canvasContainer.style.display = 'block';
+            threeContainer.style.display = 'flex';
+            threeSettings.style.display = 'block';
+            updateThreeTexture();
+            onWindowResize();
+        } else if (mode === '3d') {
+            if (viewportWrapper) viewportWrapper.classList.remove('split-mode');
             canvasContainer.style.display = 'none';
             threeContainer.style.display = 'flex';
             threeSettings.style.display = 'block';
-            
-            // Switch Mesh Select based on background or 2.5D context
-            if (workspaceTabs['2.5d'].classList.contains('was-active') || workspaceTabs['2.5d'].getAttribute('data-active') === 'true') {
-                threeMeshSelect.value = 'plane';
-            }
-            
             updateThreeTexture();
             onWindowResize();
         } else {
+            if (viewportWrapper) viewportWrapper.classList.remove('split-mode');
             canvasContainer.style.display = 'block';
             threeContainer.style.display = 'none';
             threeSettings.style.display = 'none';
@@ -1265,6 +1309,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawGemAsset(cx, cy, baseColor, accentColor, glowColor, style);
             }
         }
+        
+        // Apply premium canvas shading, grain and outline effects
+        applyHighQualityEffects(style);
         
         if (style === 'realistic' || style === 'vector' || style === 'cartoon') {
             threeMeshSelect.value = 'mesh_3d';
@@ -2718,49 +2765,103 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Three.js 3D Viewer Implementation ---
     function initThreeJS() {
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x080b13);
+        scene.background = new THREE.Color(0x050810);
+        scene.fog = new THREE.FogExp2(0x050810, 0.08);
         
-        // Camera setup
-        camera = new THREE.PerspectiveCamera(45, threeViewport.clientWidth / threeViewport.clientHeight, 0.1, 100);
-        camera.position.set(0, 2, 4);
+        // Camera setup — slightly closer and higher for a heroic view
+        camera = new THREE.PerspectiveCamera(42, threeViewport.clientWidth / threeViewport.clientHeight, 0.05, 150);
+        camera.position.set(0, 1.4, 3.2);
 
-        // Renderer setup
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        // High-Quality Renderer setup
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, precision: 'highp' });
         renderer.setSize(threeViewport.clientWidth, threeViewport.clientHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; // Cinematic tone mapping
+        renderer.toneMappingExposure = 1.15;
         
         threeViewport.innerHTML = '';
         threeViewport.appendChild(renderer.domElement);
 
-        // Controls
+        // Controls — smooth damping with limits
         orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
         orbitControls.enableDamping = true;
-        orbitControls.dampingFactor = 0.05;
-        orbitControls.maxPolarAngle = Math.PI / 2 + 0.1; // Limit panning below plane
+        orbitControls.dampingFactor = 0.06;
+        orbitControls.maxPolarAngle = Math.PI * 0.85;
+        orbitControls.minDistance = 0.8;
+        orbitControls.maxDistance = 8;
+        orbitControls.target.set(0, 0.2, 0);
+        orbitControls.zoomSpeed = 0.7;
+        orbitControls.rotateSpeed = 0.6;
 
-        // Lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        // --- Premium 5-Point Lighting Rig ---
+        // Ambient fill
+        const ambientLight = new THREE.AmbientLight(0x9bb0d0, 0.35);
         scene.add(ambientLight);
 
-        const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight1.position.set(5, 8, 5);
-        dirLight1.castShadow = true;
-        scene.add(dirLight1);
+        // Key light (main)
+        const keyLight = new THREE.DirectionalLight(0xfff5e8, 1.0);
+        keyLight.position.set(3, 6, 4);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 2048;
+        keyLight.shadow.mapSize.height = 2048;
+        keyLight.shadow.camera.near = 0.1;
+        keyLight.shadow.camera.far = 20;
+        keyLight.shadow.camera.left = -5;
+        keyLight.shadow.camera.right = 5;
+        keyLight.shadow.camera.top = 5;
+        keyLight.shadow.camera.bottom = -5;
+        keyLight.shadow.bias = -0.001;
+        keyLight.shadow.radius = 3;
+        scene.add(keyLight);
 
-        const dirLight2 = new THREE.DirectionalLight(0xa855f7, 0.3); // Purple accent light
-        dirLight2.position.set(-5, 3, -5);
-        scene.add(dirLight2);
+        // Fill light (soft opposite side)
+        const fillLight = new THREE.DirectionalLight(0x6699ff, 0.35);
+        fillLight.position.set(-4, 2, -3);
+        scene.add(fillLight);
 
-        // Floor Grid
-        const gridHelper = new THREE.GridHelper(10, 20, 0x1f2937, 0x1f2937);
-        gridHelper.position.y = -1;
+        // Rim / back-light (separates model from background)
+        const rimLight = new THREE.DirectionalLight(0xc084fc, 0.6);
+        rimLight.position.set(-1, 4, -5);
+        scene.add(rimLight);
+
+        // Top fill (sky-like)
+        const topLight = new THREE.DirectionalLight(0xaaccff, 0.25);
+        topLight.position.set(0, 8, 0);
+        scene.add(topLight);
+
+        // Ground bounce
+        const bounceLight = new THREE.DirectionalLight(0x4ade80, 0.1);
+        bounceLight.position.set(0, -3, 0);
+        scene.add(bounceLight);
+
+        // Floor: Reflective Grid
+        const gridHelper = new THREE.GridHelper(12, 24, 0x1e293b, 0x0f172a);
+        gridHelper.position.y = -1.05;
         scene.add(gridHelper);
+
+        // Shadow catcher plane
+        const planeGeo = new THREE.PlaneGeometry(8, 8);
+        const planeMat = new THREE.MeshStandardMaterial({
+            color: 0x080b13,
+            roughness: 1,
+            metalness: 0,
+            transparent: true,
+            opacity: 0.5
+        });
+        const shadowPlane = new THREE.Mesh(planeGeo, planeMat);
+        shadowPlane.rotation.x = -Math.PI / 2;
+        shadowPlane.position.y = -1.04;
+        shadowPlane.receiveShadow = true;
+        scene.add(shadowPlane);
 
         // Build base textures & material
         materials.canvasTex = new THREE.CanvasTexture(canvas);
-        materials.canvasTex.minFilter = THREE.NearestFilter;
-        materials.canvasTex.magFilter = THREE.NearestFilter; // Preserve pixel arts crispiness
+        materials.canvasTex.minFilter = THREE.LinearMipMapLinearFilter;
+        materials.canvasTex.magFilter = THREE.LinearFilter;
+        materials.canvasTex.generateMipmaps = true;
+        materials.canvasTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
         
         // Materials creation
         materials.customMaterial = new THREE.MeshStandardMaterial({
@@ -2770,7 +2871,8 @@ document.addEventListener('DOMContentLoaded', () => {
             bumpMap: materials.canvasTex,
             bumpScale: state.material.bumpScale,
             transparent: true,
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
+            envMapIntensity: 1.0
         });
 
         // Load polygonal mesh initially
@@ -2780,6 +2882,22 @@ document.addEventListener('DOMContentLoaded', () => {
         animateThreeJS();
         
         window.addEventListener('resize', onWindowResize);
+
+        // Show mouse hint overlay on 3D viewport
+        const hint = document.createElement('div');
+        hint.id = 'three-controls-hint';
+        hint.style.cssText = `
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.6);
+            font-size: 0.7rem; padding: 5px 12px; border-radius: 20px;
+            pointer-events: none; white-space: nowrap; font-family: 'Plus Jakarta Sans', sans-serif;
+            backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.08);
+            transition: opacity 0.5s ease;
+        `;
+        hint.textContent = '🖱 Arrastra para rotar · Rueda para zoom · Click derecho para mover';
+        threeViewport.style.position = 'relative';
+        threeViewport.appendChild(hint);
+        setTimeout(() => { hint.style.opacity = '0'; }, 5000);
     }
 
     function generateVoxelMesh() {
@@ -3068,11 +3186,84 @@ document.addEventListener('DOMContentLoaded', () => {
             group.add(rollL);
             group.add(rollR);
         }
+        else if (prompt.includes('personaje') || prompt.includes('character') || prompt.includes('npc') || prompt.includes('humano') || prompt.includes('guerrero') || prompt.includes('warrior') || prompt.includes('mago') || prompt.includes('mage') || prompt.includes('pícaro') || prompt.includes('rogue') || prompt.includes('sanador') || prompt.includes('healer') || prompt.includes('goblin') || prompt.includes('esqueleto') || prompt.includes('skeleton') || prompt.includes('orco') || prompt.includes('orc') || prompt.includes('ghost') || prompt.includes('fantasma') || prompt.includes('slime') || prompt.includes('monstruo') || prompt.includes('monster') || prompt.includes('golem') || prompt.includes('boss')) {
+            // --- Stylized Premium 3D Character Model ---
+            // Torso (maps custom texture!)
+            const torsoGeo = new THREE.BoxGeometry(0.52, 0.72, 0.36);
+            const torso = new THREE.Mesh(torsoGeo, materials.customMaterial);
+            torso.position.y = 0.35;
+            torso.castShadow = true;
+            torso.receiveShadow = true;
+            group.add(torso);
+
+            // Head (procedural skin coloring matching the theme)
+            const skinColorHex = document.querySelector('.skin-swatch.selected')?.getAttribute('data-skin') || '#fde8d0';
+            const headGeo = new THREE.SphereGeometry(0.24, 32, 32);
+            const headMat = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(skinColorHex),
+                roughness: 0.6,
+                metalness: 0.1
+            });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 0.82;
+            head.castShadow = true;
+            group.add(head);
+
+            // Hair (matching active selection)
+            const hairColorHex = document.querySelector('.hair-swatch.selected')?.getAttribute('data-hair') || '#1a0a00';
+            const hairGeo = new THREE.SphereGeometry(0.26, 16, 16, 0, Math.PI * 2, 0, Math.PI / 1.6);
+            const hairMat = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(hairColorHex),
+                roughness: 0.85
+            });
+            const hair = new THREE.Mesh(hairGeo, hairMat);
+            hair.position.set(0, 0.86, -0.02);
+            hair.rotation.x = 0.2;
+            hair.castShadow = true;
+            group.add(hair);
+
+            // Legs
+            const legGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.5, 12);
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.8 });
+            const legL = new THREE.Mesh(legGeo, legMat);
+            legL.position.set(-0.15, -0.15, 0);
+            legL.castShadow = true;
+            const legR = new THREE.Mesh(legGeo, legMat);
+            legR.position.set(0.15, -0.15, 0);
+            legR.castShadow = true;
+            group.add(legL);
+            group.add(legR);
+
+            // Arms (uses the custom material texture map)
+            const armGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.55, 12);
+            const armL = new THREE.Mesh(armGeo, materials.customMaterial);
+            armL.position.set(-0.35, 0.35, 0);
+            armL.rotation.z = 0.15;
+            armL.castShadow = true;
+            const armR = new THREE.Mesh(armGeo, materials.customMaterial);
+            armR.position.set(0.35, 0.35, 0);
+            armR.rotation.z = -0.15;
+            armR.castShadow = true;
+            group.add(armL);
+            group.add(armR);
+
+            // Sword or Weapon
+            if (prompt.includes('espada') || prompt.includes('sword') || prompt.includes('guerrero') || prompt.includes('warrior')) {
+                const weaponGeo = new THREE.BoxGeometry(0.04, 0.75, 0.015);
+                const weapon = new THREE.Mesh(weaponGeo, steelMat);
+                weapon.position.set(0.48, 0.48, 0.2);
+                weapon.rotation.x = -0.5;
+                weapon.castShadow = true;
+                group.add(weapon);
+            }
+        }
         else {
             // --- 3D Gem / Default Orb ---
             const gemGeo = new THREE.OctahedronGeometry(0.55, 0);
             const gem = new THREE.Mesh(gemGeo, materials.customMaterial);
             gem.position.y = 0.1;
+            gem.castShadow = true;
+            gem.receiveShadow = true;
             group.add(gem);
         }
         
@@ -4872,6 +5063,165 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillStyle = '#dc2626';
         ctx.beginPath(); ctx.moveTo(cx, cy - 130*S); ctx.lineTo(cx + 20*S, cy - 122*S); ctx.lineTo(cx, cy - 114*S); ctx.closePath(); ctx.fill();
 
+        ctx.restore();
+    }
+    // --- Curated Free 3D Models Database ---
+    const searchModelsData = [
+        { name: "Espada de Caballero", icon: "⚔️", badge: "Arma", seed: "espada", prompt: "espada de caballero antigua con runas" },
+        { name: "Sable de Pirata", icon: "🗡️", badge: "Arma", seed: "espada", prompt: "sable pirata gastado de acero y empuñadura de cuero" },
+        { name: "Báculo Arcano", icon: "🧙", badge: "Mágico", seed: "baston", prompt: "baston magico de madera de roble con gema de cristal brillante" },
+        { name: "Escudo Templario", icon: "🛡️", badge: "Defensa", seed: "escudo", prompt: "escudo templario de metal pesado con cruz roja" },
+        { name: "Yelmo de Hierro", icon: "🪖", badge: "Casco", seed: "casco", prompt: "casco yelmo de caballero medieval de hierro forjado" },
+        { name: "Cofre del Tesoro", icon: "📦", badge: "Cofre", seed: "cofre", prompt: "cofre del tesoro de madera y oro con cerradura antigua" },
+        { name: "Poción de Vida", icon: "🧪", badge: "Poción", seed: "pocion", prompt: "pocion de vida elixir rojo en frasco de cristal redondo" },
+        { name: "Poción de Veneno", icon: "☠️", badge: "Poción", seed: "pocion", prompt: "pocion de veneno liquido verde acido burbujeante" },
+        { name: "Anillo del Poder", icon: "💍", badge: "Anillo", seed: "anillo", prompt: "anillo de oro con gema preciosa de rubi rojo" },
+        { name: "Llave de Mazmorra", icon: "🔑", badge: "Llave", seed: "llave", prompt: "llave antigua de bronce de mazmorra" },
+        { name: "Pergamino Sagrado", icon: "📜", badge: "Pergamino", seed: "pergamino", prompt: "pergamino antiguo de cuero con sellos magicos" },
+        { name: "Moneda de Oro", icon: "🪙", badge: "Moneda", seed: "moneda", prompt: "moneda de oro antigua acuñada con corona" }
+    ];
+
+    function populateModelSearchResults(query = "") {
+        const grid = document.getElementById('model-results-grid');
+        if (!grid) return;
+        
+        grid.innerHTML = '';
+        const q = query.toLowerCase();
+        
+        const filtered = searchModelsData.filter(m => 
+            m.name.toLowerCase().includes(q) || 
+            m.badge.toLowerCase().includes(q) ||
+            m.prompt.toLowerCase().includes(q)
+        );
+        
+        if (filtered.length === 0) {
+            grid.innerHTML = '<div style="grid-column: span 2; text-align: center; color: var(--text-muted); padding: 2rem;">No se encontraron modelos.</div>';
+            return;
+        }
+        
+        filtered.forEach(model => {
+            const card = document.createElement('div');
+            card.className = 'model-card';
+            card.innerHTML = `
+                <div class="model-card-icon">${model.icon}</div>
+                <div class="model-card-title">${model.name}</div>
+                <span class="model-card-badge">${model.badge}</span>
+            `;
+            
+            card.addEventListener('click', () => {
+                promptInput.value = model.prompt;
+                
+                // Switch back to AI Forge tab
+                const leftTabAi = document.getElementById('left-tab-ai');
+                if (leftTabAi) leftTabAi.click();
+                
+                // Show notification text and trigger procedural generator
+                showNotification(`Cargando modelo "${model.name}"...`);
+                generateProceduralAsset(model.prompt);
+                switchWorkspace('split');
+            });
+            grid.appendChild(card);
+        });
+    }
+
+    // --- Interactive Toast Notification Helper ---
+    function showNotification(message) {
+        let toast = document.getElementById('app-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'app-toast';
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 24px;
+                right: 24px;
+                background: rgba(15, 23, 42, 0.95);
+                border: 1px solid var(--accent);
+                color: var(--text-light);
+                padding: 12px 20px;
+                border-radius: 8px;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+                font-family: 'Plus Jakarta Sans', sans-serif;
+                font-size: 0.9rem;
+                font-weight: 500;
+                z-index: 9999;
+                opacity: 0;
+                transform: translateY(10px);
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            `;
+            document.body.appendChild(toast);
+        }
+        toast.innerHTML = `<i data-lucide="info" style="color:var(--accent); width:18px; height:18px;"></i> <span>${message}</span>`;
+        if (window.lucide) window.lucide.createIcons({ attrs: { style: 'width:18px; height:18px;' } });
+        
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(10px)';
+        }, 3000);
+    }
+
+    // --- High-Quality 2D/3D Silhouette & Texturing Effects ---
+    function applyHighQualityEffects(style) {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(canvas, 0, 0);
+
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // 1. Draw a clean high-contrast outlines for cartoon/pixel style
+        if (style === 'cartoon' || style === 'pixel') {
+            ctx.save();
+            ctx.shadowColor = 'rgba(0,0,0,0.2)';
+            ctx.shadowBlur = style === 'pixel' ? 1 : 4;
+            
+            // Draw silhouette in 8 directions to construct shadow outlines
+            const offset = style === 'pixel' ? Math.max(1, w / 128) : Math.max(2, w / 128);
+            ctx.globalCompositeOperation = 'destination-over';
+            for (let x = -offset; x <= offset; x += offset) {
+                for (let y = -offset; y <= offset; y += offset) {
+                    if (x !== 0 || y !== 0) {
+                        ctx.drawImage(tempCanvas, x, y);
+                    }
+                }
+            }
+            ctx.restore();
+        }
+
+        // 2. High-quality Noise Grain texturing (adds texture detail)
+        if (style === 'realistic' || style === 'cartoon') {
+            ctx.save();
+            ctx.globalCompositeOperation = 'overlay';
+            ctx.globalAlpha = style === 'realistic' ? 0.08 : 0.04;
+            
+            for (let i = 0; i < w; i += 2) {
+                for (let j = 0; j < h; j += 2) {
+                    if (Math.random() > 0.5) {
+                        ctx.fillStyle = '#ffffff';
+                    } else {
+                        ctx.fillStyle = '#000000';
+                    }
+                    ctx.fillRect(i, j, 2, 2);
+                }
+            }
+            ctx.restore();
+        }
+
+        // 3. Volumetric vignette/lighting gradient pass
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-atop';
+        const grad = ctx.createRadialGradient(w/2, h/2, w/4, w/2, h/2, w/2);
+        grad.addColorStop(0, 'rgba(255,255,255,0.05)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.15)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
         ctx.restore();
     }
 

@@ -37,6 +37,9 @@
                 <button class="tab-btn" data-workspace="3d" id="tab-3d">
                     <i data-lucide="box"></i> 3D Model
                 </button>
+                <button class="tab-btn" data-workspace="split" id="tab-split" title="Pintar en 2D y ver en 3D en tiempo real">
+                    <i data-lucide="columns"></i> Vista Dividida
+                </button>
             </div>
             <div class="header-actions">
                 <button class="btn btn-secondary btn-icon-only" id="undo-btn" title="Deshacer (Ctrl+Z)">
@@ -53,13 +56,18 @@
 
         <!-- Main Workspace -->
         <main class="app-body">
-            <!-- Left Panel: AI Generator -->
+            <!-- Left Panel: Generator & Searcher -->
             <section class="panel left-panel">
-                <div class="panel-header">
-                    <i data-lucide="wand-2"></i>
-                    <h2>Generador IA</h2>
+                <div class="panel-tabs">
+                    <button class="panel-tab-btn active" id="left-tab-ai">
+                        <i data-lucide="wand-2"></i> IA Forge
+                    </button>
+                    <button class="panel-tab-btn" id="left-tab-search">
+                        <i data-lucide="search"></i> Buscar 3D
+                    </button>
                 </div>
-                <div class="panel-content">
+                
+                <div class="panel-content" id="ai-forge-content">
                     <div class="form-group">
                         <label for="prompt-input">¿Qué deseas crear?</label>
                         <textarea id="prompt-input" placeholder="Ej. Espada mística legendaria envuelta en llamas azules, cofre pirata antiguo con monedas de oro..."></textarea>
@@ -132,6 +140,24 @@
                             <input type="range" id="ai-guidance" min="1" max="15" step="0.5" value="7.5">
                             <span class="slider-val" id="guidance-val">7.5</span>
                         </div>
+                </div>
+                
+                <div class="panel-content" id="model-search-content" style="display: none;">
+                    <div class="form-group">
+                        <label for="model-search-input">Buscar Modelos 3D Gratuitos</label>
+                        <div class="search-input-group" style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                            <input type="text" id="model-search-input" class="form-control" placeholder="Buscar espada, casco, monstruo, cofre..." style="flex: 1;">
+                            <button class="btn btn-secondary btn-icon-only" id="model-search-btn" title="Buscar"><i data-lucide="search"></i></button>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-section-title">
+                        <i data-lucide="grid-3x3"></i>
+                        <h3>Modelos Disponibles</h3>
+                    </div>
+                    
+                    <div class="model-results-grid" id="model-results-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; max-height: 480px; overflow-y: auto; padding-right: 0.25rem;">
+                        <!-- Dynamically filled with search results -->
                     </div>
                 </div>
             </section>

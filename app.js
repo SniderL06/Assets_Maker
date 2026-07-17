@@ -127,19 +127,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initial Setup ---
     function init() {
-        // Setup Canvas Dimensions
-        resizeCanvas(256, 256);
-        initThreeJS();
-        drawInitialPlaceholder();
-        populateModelSearchResults(""); // Pre-populate search grid on load
-        saveHistoryState();
+        try {
+            // Setup Canvas Dimensions
+            resizeCanvas(256, 256);
+            initThreeJS();
 
-        // Event listeners
-        setupEventListeners();
-        setupCanvasDrawing();
-        
-        // Load default style preset
-        updateStylePreset();
+            // Load default style preset (resizes canvas to correct style size first)
+            updateStylePreset();
+
+            // Initial drawing background
+            drawInitialPlaceholder();
+            populateModelSearchResults(""); // Pre-populate search grid on load
+            saveHistoryState();
+
+            // Event listeners
+            setupEventListeners();
+            setupCanvasDrawing();
+        } catch (error) {
+            console.error("Runtime error during init:", error);
+            showNotification("Error de inicialización: " + error.message);
+        }
     }
 
     // --- Canvas Operations ---
@@ -295,12 +302,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners Setup ---
     function setupEventListeners() {
-        // Workspaces Tabs
-        Object.keys(workspaceTabs).forEach(key => {
-            workspaceTabs[key].addEventListener('click', () => {
-                switchWorkspace(key);
+        try {
+            // Workspaces Tabs
+            Object.keys(workspaceTabs).forEach(key => {
+                if (workspaceTabs[key]) {
+                    workspaceTabs[key].addEventListener('click', () => {
+                        switchWorkspace(key);
+                    });
+                }
             });
-        });
 
         // Tools
         Object.keys(tools).forEach(key => {
@@ -587,6 +597,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     populateModelSearchResults(modelSearchInput.value);
                 }
             });
+        }
+        } catch (error) {
+            console.error("Runtime error in setupEventListeners:", error);
         }
     }
 
@@ -3019,32 +3032,86 @@ document.addEventListener('DOMContentLoaded', () => {
             emissiveIntensity: isGlowing ? 0.45 : 0.08 // always some glow so it's visible
         });
 
-        if (prompt.includes('espada') || prompt.includes('sword') || prompt.includes('arma') || prompt.includes('hoja') || prompt.includes('katana')) {
-            // --- 3D Sword ---
-            // Grip
-            const gripGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.35, 12);
-            const grip = new THREE.Mesh(gripGeo, woodMat);
-            grip.position.y = -0.4;
-            group.add(grip);
-            
-            // Pommel
-            const pommelGeo = new THREE.SphereGeometry(0.06, 12, 12);
-            const pommel = new THREE.Mesh(pommelGeo, goldMat);
-            pommel.position.y = -0.58;
-            group.add(pommel);
-            
-            // Guard
-            const guardGeo = new THREE.BoxGeometry(0.44, 0.06, 0.08);
-            const guard = new THREE.Mesh(guardGeo, steelMat);
-            guard.position.y = -0.2;
-            group.add(guard);
-            
-            // Blade (uses solid colored metallic/glowing material for a perfect connected look!)
-            const bladeGeo = new THREE.CylinderGeometry(0.005, 0.07, 1.2, 4);
-            const blade = new THREE.Mesh(bladeGeo, bladeMat);
-            blade.scale.set(1.4, 1, 0.15); // sharp edge diamond scaling
-            blade.position.y = 0.4;
-            group.add(blade);
+        if (prompt.includes('espada') || prompt.includes('sword') || prompt.includes('arma') || prompt.includes('hoja') || prompt.includes('katana') || prompt.includes('sable')) {
+            const isKatana = prompt.includes('katana') || prompt.includes('sable');
+
+            if (isKatana) {
+                // --- 3D Katana (Japanese Sword) ---
+                // Grip (longer, slightly curved representation)
+                const gripGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.45, 12);
+                const gripMatCustom = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 }); // Black wrap
+                const grip = new THREE.Mesh(gripGeo, gripMatCustom);
+                grip.position.set(-0.02, -0.42, 0);
+                grip.rotation.z = 0.08; // slightly angled grip
+                group.add(grip);
+
+                // Kashira (pommel cap)
+                const pommelGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.05, 12);
+                const pommel = new THREE.Mesh(pommelGeo, goldMat);
+                pommel.position.set(-0.04, -0.65, 0);
+                pommel.rotation.z = 0.08;
+                group.add(pommel);
+
+                // Tsuba (Japanese Circular Guard)
+                const guardGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.02, 24);
+                const guard = new THREE.Mesh(guardGeo, goldMat);
+                guard.position.set(0, -0.2, 0);
+                guard.rotation.x = Math.PI / 2;
+                group.add(guard);
+
+                // Curved Katana Blade built from 6 connected, angled segments
+                const segments = 6;
+                const segmentHeight = 0.22;
+                let currentY = -0.2;
+                let currentX = 0;
+                let currentRotation = 0;
+
+                for (let i = 0; i < segments; i++) {
+                    const segGeo = new THREE.BoxGeometry(0.02, segmentHeight, 0.07);
+                    const seg = new THREE.Mesh(segGeo, bladeMat);
+                    
+                    // Position at top of previous segment
+                    seg.position.set(
+                        currentX + Math.sin(currentRotation) * (segmentHeight / 2),
+                        currentY + Math.cos(currentRotation) * (segmentHeight / 2),
+                        0
+                    );
+                    seg.rotation.z = -currentRotation;
+                    seg.castShadow = true;
+                    group.add(seg);
+
+                    // Update cursor for next segment (gradually curve to the left/right)
+                    currentX += Math.sin(currentRotation) * segmentHeight;
+                    currentY += Math.cos(currentRotation) * segmentHeight;
+                    currentRotation += 0.06; // curvature step
+                }
+            } else {
+                // --- 3D Traditional Medieval Sword ---
+                // Grip
+                const gripGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.35, 12);
+                const grip = new THREE.Mesh(gripGeo, woodMat);
+                grip.position.y = -0.4;
+                group.add(grip);
+                
+                // Pommel
+                const pommelGeo = new THREE.SphereGeometry(0.06, 12, 12);
+                const pommel = new THREE.Mesh(pommelGeo, goldMat);
+                pommel.position.y = -0.58;
+                group.add(pommel);
+                
+                // Guard
+                const guardGeo = new THREE.BoxGeometry(0.44, 0.06, 0.08);
+                const guard = new THREE.Mesh(guardGeo, steelMat);
+                guard.position.y = -0.2;
+                group.add(guard);
+                
+                // Blade
+                const bladeGeo = new THREE.CylinderGeometry(0.005, 0.07, 1.2, 4);
+                const blade = new THREE.Mesh(bladeGeo, bladeMat);
+                blade.scale.set(1.4, 1, 0.15); // sharp edge diamond scaling
+                blade.position.y = 0.4;
+                group.add(blade);
+            }
         }
         else if (prompt.includes('pocion') || prompt.includes('potion') || prompt.includes('frasco') || prompt.includes('botella')) {
             // --- 3D Potion Bottle ---
@@ -3433,8 +3500,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (materials.canvasTex) {
             materials.canvasTex.needsUpdate = true;
         }
-        // Only regenerate the full mesh when EXPLICITLY asked (e.g. after AI generation),
-        // not on every brush stroke — that caused the mesh to flicker/reset while painting.
+        // Regenerate voxel mesh in real-time when the user is painting on it
+        if (threeMeshSelect && threeMeshSelect.value === 'voxel_3d') {
+            updateThreeMesh('voxel_3d');
+        }
     }
 
     function updateThreeMaterial() {

@@ -616,6 +616,43 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // Scene Editor interactions
+        const sceneEditorPanel = document.getElementById('scene-editor-panel');
+        if (sceneEditorPanel) {
+            // Scene type button selection
+            ['scene-type-grid', 'scene-time-grid', 'scene-weather-grid'].forEach(gridId => {
+                const grid = document.getElementById(gridId);
+                if (!grid) return;
+                grid.querySelectorAll('.char-type-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        grid.querySelectorAll('.char-type-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                    });
+                });
+            });
+
+            // Regenerate scene button
+            const btnRegenScene = document.getElementById('btn-regen-scene');
+            if (btnRegenScene) {
+                btnRegenScene.addEventListener('click', () => {
+                    const sceneType = sceneEditorPanel.querySelector('[data-scene-type].active')?.getAttribute('data-scene-type') || 'forest';
+                    const sceneTime = sceneEditorPanel.querySelector('[data-scene-time].active')?.getAttribute('data-scene-time') || 'day';
+                    const sceneWeather = sceneEditorPanel.querySelector('[data-scene-weather].active')?.getAttribute('data-scene-weather') || 'clear';
+                    
+                    // Build a prompt from selected options and regenerate
+                    const promptEl = document.getElementById('asset-prompt');
+                    const oldPrompt = promptEl ? promptEl.value : '';
+                    const scenePrompt = `${sceneType} ${sceneTime} ${sceneWeather} escenario landscape`;
+                    if (promptEl) promptEl.value = scenePrompt;
+                    
+                    generateProceduralAsset();
+                    
+                    if (promptEl) promptEl.value = oldPrompt;
+                    saveHistoryState();
+                });
+            }
+        }
+
         // Left Panel Tab Switching (AI Forge / Buscar 3D)
         const leftTabAi = document.getElementById('left-tab-ai');
         const leftTabSearch = document.getElementById('left-tab-search');
@@ -1341,6 +1378,37 @@ document.addEventListener('DOMContentLoaded', () => {
             if (charEditor) charEditor.style.display = 'none';
         }
 
+        // Show/Hide Scene Editor Panel
+        const sceneEditor = document.getElementById('scene-editor-panel');
+        const isScenePrompt = matchesAny(['escenario','escena','scenario','background','fondo','paisaje','landscape','bosque','forest','cueva','cave','mazmorra','dungeon','ciudad','city','montaña','mountain','mar','sea','playa','beach','cielo','sky','desierto','desert','pantano','swamp','ruinas','ruins','nieve','tundra']);
+        if (sceneEditor) {
+            if (isScenePrompt) {
+                sceneEditor.style.display = 'block';
+                // Auto-select scene type btn if matches
+                const sceneTypeMap = {
+                    'forest': ['bosque','forest'], 'mountain': ['montaña','mountain'],
+                    'dungeon': ['mazmorra','dungeon'], 'beach': ['playa','beach','mar','sea'],
+                    'city': ['ciudad','city'], 'snow': ['nieve','tundra'],
+                    'cave': ['cueva','cave'], 'desert': ['desierto','desert'],
+                    'swamp': ['pantano','swamp'], 'ruins': ['ruinas','ruins'],
+                    'sky': ['cielo','sky']
+                };
+                for (const [type, keywords] of Object.entries(sceneTypeMap)) {
+                    if (keywords.some(kw => p.includes(kw))) {
+                        const typeGrid = document.getElementById('scene-type-grid');
+                        if (typeGrid) {
+                            typeGrid.querySelectorAll('.char-type-btn').forEach(b => b.classList.remove('active'));
+                            const btn = typeGrid.querySelector(`[data-scene-type="${type}"]`);
+                            if (btn) btn.classList.add('active');
+                        }
+                        break;
+                    }
+                }
+            } else {
+                sceneEditor.style.display = 'none';
+            }
+        }
+
         // Weapons & items
         const isSword     = matchesAny(['espada','sword','katana','sable','daga','dagger','cuchillo','knife','hacha','axe','lanza','spear','pica','pike','mangual','flail']);
         const isBow       = matchesAny(['arco','bow','flecha','arrow','ballesta','crossbow','sling','honda']);
@@ -1424,6 +1492,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawTreeAsset(cx, cy, baseColor, accentColor, glowColor, style);
             } else if (isBuilding) {
                 drawBuildingAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (matchesAny(['escenario','escena','scenario','background','fondo','paisaje','landscape','bosque','forest','cueva','cave','mazmorra','dungeon','ciudad','city','montaña','mountain','mar','sea','playa','beach','cielo','sky'])) {
+                drawSceneAsset(cx, cy, baseColor, accentColor, glowColor, style);
             } else {
                 // Default: Magic Orb
                 drawGemAsset(cx, cy, baseColor, accentColor, glowColor, style);
@@ -1433,7 +1503,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Apply premium canvas shading, grain and outline effects
         applyHighQualityEffects(style);
         
-        if (style === 'realistic' || style === 'vector' || style === 'cartoon') {
+        const isScene = matchesAny(['escenario','escena','scenario','background','fondo','paisaje','landscape','bosque','forest','cueva','cave','ciudad','city','montaña','mountain','mar','sea']);
+        if (isScene) {
+            threeMeshSelect.value = 'scene_3d';
+            updateThreeMesh('scene_3d');
+        } else if (style === 'realistic' || style === 'vector' || style === 'cartoon') {
             threeMeshSelect.value = 'mesh_3d';
             updateThreeMesh('mesh_3d');
         } else {
@@ -3579,6 +3653,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 group.add(weapon);
             }
         }
+        else if (prompt.includes('escenario') || prompt.includes('escena') || prompt.includes('scenario') || prompt.includes('background') || prompt.includes('fondo') || prompt.includes('paisaje') || prompt.includes('landscape') || prompt.includes('bosque') || prompt.includes('forest') || prompt.includes('cueva') || prompt.includes('cave') || prompt.includes('ciudad') || prompt.includes('city') || prompt.includes('montaña') || prompt.includes('mountain') || prompt.includes('mar') || prompt.includes('sea')) {
+            // --- 3D Scene Diorama ---
+            
+            // Ground plane (large flat base with canvas texture)
+            const groundGeo = new THREE.BoxGeometry(3.2, 0.06, 2.2);
+            const ground = new THREE.Mesh(groundGeo, materials.customMaterial);
+            ground.position.y = -0.42;
+            ground.receiveShadow = true;
+            group.add(ground);
+
+            // Back sky backdrop panel
+            const skyGeo = new THREE.PlaneGeometry(3.0, 1.8);
+            const sky = new THREE.Mesh(skyGeo, materials.customMaterial);
+            sky.position.set(0, 0.5, 1.05);
+            sky.rotation.y = Math.PI;
+            group.add(sky);
+
+            // Mountain 1 (left, tallest)
+            const mtn1Geo = new THREE.ConeGeometry(0.65, 1.1, 4);
+            const mtnMat = new THREE.MeshStandardMaterial({ color: 0x4a5568, roughness: 0.85, metalness: 0.05 });
+            const mtn1 = new THREE.Mesh(mtn1Geo, mtnMat);
+            mtn1.position.set(-0.8, 0.18, 0.5);
+            mtn1.rotation.y = Math.PI / 4;
+            mtn1.castShadow = true;
+            group.add(mtn1);
+
+            // Mountain 1 snow cap
+            const snowCapGeo = new THREE.ConeGeometry(0.22, 0.3, 4);
+            const snowMat = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.9 });
+            const snowCap = new THREE.Mesh(snowCapGeo, snowMat);
+            snowCap.position.set(-0.8, 0.73, 0.5);
+            snowCap.rotation.y = Math.PI / 4;
+            group.add(snowCap);
+
+            // Mountain 2 (right, medium)
+            const mtn2Geo = new THREE.ConeGeometry(0.5, 0.85, 5);
+            const mtn2 = new THREE.Mesh(mtn2Geo, mtnMat);
+            mtn2.position.set(0.7, 0.08, 0.6);
+            mtn2.castShadow = true;
+            group.add(mtn2);
+
+            // Mountain 3 (center-back, small)
+            const mtn3Geo = new THREE.ConeGeometry(0.35, 0.65, 4);
+            const mtn3 = new THREE.Mesh(mtn3Geo, new THREE.MeshStandardMaterial({ color: 0x718096, roughness: 0.8 }));
+            mtn3.position.set(0.0, 0.0, 0.8);
+            mtn3.rotation.y = Math.PI / 5;
+            group.add(mtn3);
+
+            // Pine Trees
+            const drawPine3D = (px, pz, tHeight) => {
+                const trunkGeo = new THREE.CylinderGeometry(0.025, 0.025, tHeight * 0.3, 8);
+                const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 });
+                const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+                trunk.position.set(px, -0.42 + tHeight * 0.15, pz);
+                group.add(trunk);
+
+                const leavesGeo = new THREE.ConeGeometry(tHeight * 0.22, tHeight * 0.72, 7);
+                const leavesMat = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.8 });
+                const leaves = new THREE.Mesh(leavesGeo, leavesMat);
+                leaves.position.set(px, -0.42 + tHeight * 0.52, pz);
+                leaves.castShadow = true;
+                group.add(leaves);
+            };
+
+            drawPine3D(-1.2, 0.0, 0.7);
+            drawPine3D(-1.0, -0.3, 0.55);
+            drawPine3D(1.1, 0.1, 0.65);
+            drawPine3D(1.35, -0.35, 0.48);
+            drawPine3D(0.3, -0.6, 0.42);
+        }
         else {
             // --- 3D Gem / Default Orb ---
             // Use canvas texture ONLY if something has been generated, otherwise use a stylized material
@@ -3734,8 +3878,11 @@ document.addEventListener('DOMContentLoaded', () => {
             group.add(topMesh);
             currentMesh = group;
         }
+        else if (meshType === 'scene_3d') {
+            currentMesh = generateReal3DMesh();
+        }
 
-        if (meshType !== 'isometric_terrain' && meshType !== 'voxel_3d' && meshType !== 'mesh_3d') {
+        if (meshType !== 'isometric_terrain' && meshType !== 'voxel_3d' && meshType !== 'mesh_3d' && meshType !== 'scene_3d') {
             currentMesh.castShadow = true;
             currentMesh.receiveShadow = true;
         }
@@ -5796,6 +5943,151 @@ document.addEventListener('DOMContentLoaded', () => {
             toast.style.opacity = '0';
             toast.style.transform = 'translateY(10px)';
         }, 3000);
+    }
+
+    // ─── SCENE / LANDSCAPE ──────────────────────────────────────────────────
+    function drawSceneAsset(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const w = canvas.width;
+        const h = canvas.height;
+        const S = w / 256;
+        const px = style === 'pixel';
+
+        // 1. Sky Gradient (from horizon to zenith)
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+        skyGrad.addColorStop(0, darkenColor(base, 50));
+        skyGrad.addColorStop(0.6, base);
+        skyGrad.addColorStop(1, lightenColor(acc, 20));
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, w, h);
+
+        // 2. Sun / Moon
+        const sunX = w * 0.7;
+        const sunY = h * 0.25;
+        const sunR = 24 * S;
+        ctx.save();
+        if (!px) {
+            // Glowing sun halo
+            drawGlowHalo(sunX, sunY, sunR * 2.2, glowAlpha(glow, 0.45), 3);
+        }
+        ctx.fillStyle = '#fffbeb';
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // 3. Clouds
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        const drawCloud = (cx2, cy2, cw) => {
+            ctx.beginPath();
+            if (px) {
+                // Pixel blocks cloud
+                ctx.fillRect(cx2 - cw*0.6, cy2 - 4*S, cw*1.2, 10*S);
+                ctx.fillRect(cx2 - cw*0.4, cy2 - 10*S, cw*0.8, 10*S);
+                ctx.fillRect(cx2 - cw*0.2, cy2 - 14*S, cw*0.4, 10*S);
+            } else {
+                ctx.ellipse(cx2, cy2, cw, cw * 0.4, 0, 0, Math.PI * 2);
+                ctx.ellipse(cx2 - cw*0.4, cy2 - 4*S, cw * 0.5, cw * 0.4, 0, 0, Math.PI * 2);
+                ctx.ellipse(cx2 + cw*0.4, cy2 - 4*S, cw * 0.5, cw * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fill();
+        };
+        drawCloud(w * 0.3, h * 0.2, 38 * S);
+        drawCloud(w * 0.8, h * 0.15, 26 * S);
+
+        // 4. Distant Mountains (Layer 1 - Far)
+        ctx.fillStyle = darkenColor(base, 25);
+        ctx.beginPath();
+        if (px) {
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, h * 0.6);
+            ctx.lineTo(w * 0.25, h * 0.45);
+            ctx.lineTo(w * 0.5, h * 0.65);
+            ctx.lineTo(w * 0.75, h * 0.5);
+            ctx.lineTo(w, h * 0.62);
+            ctx.lineTo(w, h);
+        } else {
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, h * 0.6);
+            ctx.quadraticCurveTo(w * 0.25, h * 0.4, w * 0.5, h * 0.6);
+            ctx.quadraticCurveTo(w * 0.75, h * 0.45, w, h * 0.6);
+            ctx.lineTo(w, h);
+        }
+        ctx.closePath(); ctx.fill();
+
+        // 5. Midground Mountains (Layer 2)
+        ctx.fillStyle = darkenColor(base, 10);
+        ctx.beginPath();
+        if (px) {
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, h * 0.7);
+            ctx.lineTo(w * 0.35, h * 0.55);
+            ctx.lineTo(w * 0.6, h * 0.72);
+            ctx.lineTo(w * 0.82, h * 0.58);
+            ctx.lineTo(w, h * 0.75);
+            ctx.lineTo(w, h);
+        } else {
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, h * 0.7);
+            ctx.quadraticCurveTo(w * 0.38, h * 0.52, w * 0.65, h * 0.7);
+            ctx.quadraticCurveTo(w * 0.85, h * 0.55, w, h * 0.72);
+            ctx.lineTo(w, h);
+        }
+        ctx.closePath(); ctx.fill();
+
+        // 6. Foreground Terrain / Hills (Layer 3 - Close)
+        const foreGrad = ctx.createLinearGradient(0, h * 0.7, 0, h);
+        foreGrad.addColorStop(0, darkenColor(acc, 30));
+        foreGrad.addColorStop(1, darkenColor(acc, 50));
+        ctx.fillStyle = foreGrad;
+        ctx.beginPath();
+        if (px) {
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, h * 0.82);
+            ctx.lineTo(w * 0.3, h * 0.78);
+            ctx.lineTo(w * 0.7, h * 0.85);
+            ctx.lineTo(w, h * 0.8);
+            ctx.lineTo(w, h);
+        } else {
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, h * 0.8);
+            ctx.quadraticCurveTo(w * 0.4, h * 0.75, w * 0.75, h * 0.83);
+            ctx.quadraticCurveTo(w * 0.9, h * 0.78, w, h * 0.82);
+            ctx.lineTo(w, h);
+        }
+        ctx.closePath(); ctx.fill();
+
+        // 7. Silhouetted Pine Trees in foreground
+        const drawPine = (tx, ty, th) => {
+            const tw = th * 0.45;
+            ctx.fillStyle = darkenColor(acc, 55);
+            
+            // Trunk
+            ctx.fillRect(tx - 2*S, ty, 4*S, th * 0.35);
+
+            // Leaf triangles
+            ctx.beginPath();
+            if (px) {
+                ctx.moveTo(tx, ty - th);
+                ctx.lineTo(tx - tw, ty - th * 0.3);
+                ctx.lineTo(tx + tw, ty - th * 0.3);
+            } else {
+                ctx.moveTo(tx, ty - th);
+                ctx.quadraticCurveTo(tx - tw * 0.5, ty - th * 0.75, tx - tw, ty - th * 0.35);
+                ctx.lineTo(tx + tw, ty - th * 0.35);
+                ctx.quadraticCurveTo(tx + tw * 0.5, ty - th * 0.75, tx, ty - th);
+            }
+            ctx.closePath(); ctx.fill();
+        };
+
+        // Draw a small forest grouping on the hills
+        drawPine(w * 0.15, h * 0.85, 36 * S);
+        drawPine(w * 0.22, h * 0.88, 24 * S);
+        drawPine(w * 0.78, h * 0.9, 44 * S);
+        drawPine(w * 0.86, h * 0.92, 30 * S);
+
+        ctx.restore();
     }
 
     // --- High-Quality 2D/3D Silhouette & Texturing Effects ---

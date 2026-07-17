@@ -2995,7 +2995,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const group = new THREE.Group();
         
         // Dynamic grid sampling size for voxels based on canvas resolution
-        // Use 32x32 grid for detailed yet performant voxels
         const size = Math.min(canvas.width, 32);
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = size;
@@ -3012,6 +3011,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const boxGeometry = new THREE.BoxGeometry(voxelW, voxelW, voxelW);
         const materialsCache = {};
         
+        const activeTypeBtn = document.querySelector('#char-editor-panel .char-type-btn.active');
+        const activeType = activeTypeBtn ? activeTypeBtn.getAttribute('data-type') : 'warrior';
+        const isAnimal = ['dog', 'cat', 'chicken', 'wolf'].includes(activeType);
+
         for (let y = 0; y < size; y++) {
             for (let x = 0; x < size; x++) {
                 const idx = (y * size + x) * 4;
@@ -3028,15 +3031,59 @@ document.addEventListener('DOMContentLoaded', () => {
                         materialsCache[hexColor] = new THREE.MeshStandardMaterial({
                             color: new THREE.Color(hexColor),
                             roughness: 0.6,
-                            metalness: 0.15
+                            metalness: 0.12
                         });
                     }
                     
                     const posX = (x - size / 2) * voxelW;
                     const posY = ((size - y) - size / 2) * voxelW;
                     
-                    // Extrusion depth layers to give it 3D thickness
-                    const depth = 2;
+                    // Intelligent variable extrusion depth for true 3D volume
+                    let depth = 2;
+
+                    if (isAnimal) {
+                        // Animals: sculpt a rounded cylindrical body or egg shape
+                        const centerX = size / 2;
+                        const centerY = size / 2;
+                        const distToCenter = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+                        
+                        // Round voxel shell depth
+                        const radius = size * 0.38;
+                        if (distToCenter < radius) {
+                            depth = Math.round(Math.sqrt(Math.max(1, Math.pow(radius, 2) - Math.pow(distToCenter, 2))) * 0.7);
+                        } else {
+                            depth = 2;
+                        }
+                    } else {
+                        // Humanoids: differentiate Head, Torso, Arms, Legs
+                        if (y < size * 0.35) {
+                            // Head region: sphere-like volume
+                            const headCenterX = size / 2;
+                            const headCenterY = size * 0.18;
+                            const distToHeadCenter = Math.sqrt(Math.pow(x - headCenterX, 2) + Math.pow(y - headCenterY, 2));
+                            const headRadius = size * 0.18;
+
+                            if (distToHeadCenter < headRadius) {
+                                depth = Math.round(Math.sqrt(Math.max(4, Math.pow(headRadius, 2) - Math.pow(distToHeadCenter, 2))) * 1.3);
+                            } else {
+                                depth = 4; // Hat brim / hair extensions
+                            }
+                        } else if (y >= size * 0.35 && y < size * 0.68) {
+                            // Torso and arms
+                            const distToCenterX = Math.abs(x - size / 2);
+                            if (distToCenterX < size * 0.22) {
+                                depth = 8; // Torso body
+                            } else {
+                                depth = 4; // Arms/accessories
+                            }
+                        } else {
+                            // Legs and feet
+                            depth = 5;
+                        }
+                    }
+
+                    depth = Math.max(2, depth); // safety minimum
+
                     for (let z = 0; z < depth; z++) {
                         const posZ = (z - (depth - 1) / 2) * voxelW;
                         const voxelMesh = new THREE.Mesh(boxGeometry, materialsCache[hexColor]);
@@ -3050,7 +3097,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Adjust vertical position to fit the floor grid
-        group.position.y = 0.3;
+        group.position.y = 0.35;
         return group;
     }
 
@@ -3430,15 +3477,9 @@ document.addEventListener('DOMContentLoaded', () => {
             torso.receiveShadow = true;
             group.add(torso);
 
-            // Head (procedural skin coloring matching the theme)
-            const skinColorHex = document.querySelector('.skin-swatch.selected')?.getAttribute('data-skin') || '#fde8d0';
-            const headGeo = new THREE.SphereGeometry(0.24, 32, 32);
-            const headMat = new THREE.MeshStandardMaterial({
-                color: new THREE.Color(skinColorHex),
-                roughness: 0.6,
-                metalness: 0.1
-            });
-            const head = new THREE.Mesh(headGeo, headMat);
+            // Head (uses custom material texture to project the painted face details!)
+            const headGeo = new THREE.BoxGeometry(0.44, 0.42, 0.42);
+            const head = new THREE.Mesh(headGeo, materials.customMaterial);
             head.position.y = 0.82;
             head.castShadow = true;
             group.add(head);

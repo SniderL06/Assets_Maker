@@ -1212,19 +1212,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMerchant  = matchesAny(['comerciante','merchant','vendedor','shopkeeper','mercader']);
         const isVillager  = matchesAny(['aldeano','villager','campesino','peasant','citizen','ciudadano','granjar','farmer']);
         const isGuard     = matchesAny(['guardia','guard','soldier','soldado','vigilante','police']);
-        const isNoble     = matchesAny(['noble','rey','king','queen','reina','prince','principe','princess','princesa','lord','lady','duke']);
+        const isNoble     = matchesAny(['noble','rey','king','queen','reina','prince','principe','lord','lady','duke']);
+        const isPrincess  = matchesAny(['princess','princesa','reina','queen']);
         const isElder     = matchesAny(['anciano','elder','viejo','old man','grandpa','abuelo','abuela']);
         const isChild     = matchesAny(['niño','nino','child','kid','boy','girl','chico','chica']);
         const isBlacksmith= matchesAny(['herrero','blacksmith','forjador']);
         const isInnkeeper = matchesAny(['posadero','innkeeper','tabernero']);
+        const isBeggar    = matchesAny(['vago','beggar','mendigo','pobre']);
         const isBandit    = matchesAny(['bandido','bandit','ladron','thug','pirata','pirate','outlaw']);
         
         const isCharacter = isWarrior || isMage || isRogue || isHealer || isArcher || isPaladin ||
-                            isMerchant || isVillager || isGuard || isNoble || isElder || isChild ||
-                            isBlacksmith || isInnkeeper || isBandit ||
+                            isMerchant || isVillager || isGuard || isNoble || isPrincess || isElder || isChild ||
+                            isBlacksmith || isInnkeeper || isBeggar || isBandit ||
                             matchesAny(['personaje','character','hero','heroe','heroine','heroina','protagonista','player','jugador','avatar','npc','persona','human','humano','hombre','mujer']);
 
-        // Creatures & monsters
+        // Creatures, monsters & animals
         const isSlime     = matchesAny(['slime','limo','gelatina','blob','ameba']);
         const isGoblin    = matchesAny(['goblin','kobold','gnome','gnomo','duende']);
         const isSkeleton  = matchesAny(['skeleton','esqueleto','undead','muerto','zombie','lich','liche']);
@@ -1233,12 +1235,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const isGhost     = matchesAny(['ghost','fantasma','espiritu','spirit','wraith','banshee','phantom']);
         const isSpider    = matchesAny(['spider','araña','aracnido','scorpion','escorpion']);
         const isBat       = matchesAny(['bat','murcielago','vampiro','vampire']);
-        const isWolf      = matchesAny(['wolf','lobo','werewolf','licantro','lycanthrope','dog','perro','beast']);
+        const isWolf      = matchesAny(['wolf','lobo','werewolf','licantro','lycanthrope','beast']);
+        const isDog       = matchesAny(['dog','perro','cachorro','puppy']);
+        const isCat       = matchesAny(['cat','gato','felino','kitten']);
+        const isChicken   = matchesAny(['chicken','gallina','gallo','pollo']);
         const isGolem     = matchesAny(['golem','construct','elemental','robot','automaton','automata']);
         const isBoss      = matchesAny(['jefe','boss','final boss','raid','demonio','demon','diablo','devil','titan','gigante','giant']);
         const isCreature  = isSlime || isGoblin || isSkeleton || isDragon || isOrc ||
-                            isGhost || isSpider || isBat || isWolf || isGolem || isBoss ||
-                            matchesAny(['monstruo','monster','criatura','creature','enemy','enemigo','bestia','beast','evil','maligno']);
+                            isGhost || isSpider || isBat || isWolf || isDog || isCat || isChicken || isGolem || isBoss ||
+                            matchesAny(['monstruo','monster','criatura','creature','enemy','enemigo','bestia','beast','evil','maligno','animal']);
 
         // Show/Hide Character Editor Panel in Right Panel
         const charEditor = document.getElementById('char-editor-panel');
@@ -1257,10 +1262,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (isVillager) typeToSelect = 'villager';
                 else if (isGuard) typeToSelect = 'guard';
                 else if (isNoble) typeToSelect = 'noble';
+                else if (isPrincess) typeToSelect = 'princess';
                 else if (isElder) typeToSelect = 'elder';
                 else if (isChild) typeToSelect = 'child';
                 else if (isBlacksmith) typeToSelect = 'blacksmith';
                 else if (isInnkeeper) typeToSelect = 'innkeeper';
+                else if (isBeggar) typeToSelect = 'beggar';
                 else if (isBandit) typeToSelect = 'bandit';
                 else if (isSlime) typeToSelect = 'slime';
                 else if (isGoblin) typeToSelect = 'goblin';
@@ -1271,6 +1278,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (isSpider) typeToSelect = 'spider';
                 else if (isBat) typeToSelect = 'bat';
                 else if (isWolf) typeToSelect = 'wolf';
+                else if (isDog) typeToSelect = 'dog';
+                else if (isCat) typeToSelect = 'cat';
+                else if (isChicken) typeToSelect = 'chicken';
                 else if (isGolem) typeToSelect = 'golem';
                 else if (isBoss) typeToSelect = 'boss';
 
@@ -3321,7 +3331,96 @@ document.addEventListener('DOMContentLoaded', () => {
             group.add(rollL);
             group.add(rollR);
         }
-        else if (prompt.includes('personaje') || prompt.includes('character') || prompt.includes('npc') || prompt.includes('humano') || prompt.includes('guerrero') || prompt.includes('warrior') || prompt.includes('mago') || prompt.includes('mage') || prompt.includes('pícaro') || prompt.includes('rogue') || prompt.includes('sanador') || prompt.includes('healer') || prompt.includes('goblin') || prompt.includes('esqueleto') || prompt.includes('skeleton') || prompt.includes('orco') || prompt.includes('orc') || prompt.includes('ghost') || prompt.includes('fantasma') || prompt.includes('slime') || prompt.includes('monstruo') || prompt.includes('monster') || prompt.includes('golem') || prompt.includes('boss')) {
+        else if (prompt.includes('dog') || prompt.includes('perro') || prompt.includes('cat') || prompt.includes('gato') || prompt.includes('wolf') || prompt.includes('lobo') || prompt.includes('chicken') || prompt.includes('gallina') || prompt.includes('gallo') || prompt.includes('pollo')) {
+            const isChicken = prompt.includes('chicken') || prompt.includes('gallina') || prompt.includes('gallo') || prompt.includes('pollo');
+            
+            if (isChicken) {
+                // --- Plump 3D Chicken ---
+                const bodyGeo = new THREE.SphereGeometry(0.38, 24, 24);
+                const bodyMesh = new THREE.Mesh(bodyGeo, materials.customMaterial);
+                bodyMesh.position.y = 0.2;
+                bodyMesh.scale.set(1, 1.1, 1.15); // egg shape
+                bodyMesh.castShadow = true;
+                group.add(bodyMesh);
+
+                // Orange Beak
+                const beakGeo = new THREE.ConeGeometry(0.06, 0.15, 4);
+                const beakMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.5 });
+                const beak = new THREE.Mesh(beakGeo, beakMat);
+                beak.position.set(0, 0.28, -0.42);
+                beak.rotation.x = -Math.PI / 2.2;
+                group.add(beak);
+
+                // Tiny legs
+                const legGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.18, 8);
+                const legMat = new THREE.MeshStandardMaterial({ color: 0xf97316 });
+                const legL = new THREE.Mesh(legGeo, legMat);
+                const legR = new THREE.Mesh(legGeo, legMat);
+                legL.position.set(-0.12, -0.15, 0);
+                legR.position.set(0.12, -0.15, 0);
+                group.add(legL);
+                group.add(legR);
+            } else {
+                // --- Quadrupeds: Dog, Cat, Wolf ---
+                const isCat = prompt.includes('cat') || prompt.includes('gato');
+                
+                // Horizontal Torso
+                const bodyGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.72, 16);
+                const bodyMesh = new THREE.Mesh(bodyGeo, materials.customMaterial);
+                bodyMesh.rotation.x = Math.PI / 2; // lie down horizontal
+                bodyMesh.position.y = 0.25;
+                bodyMesh.castShadow = true;
+                group.add(bodyMesh);
+
+                // Head
+                const headGeo = new THREE.SphereGeometry(0.18, 24, 24);
+                const head = new THREE.Mesh(headGeo, materials.customMaterial);
+                head.position.set(0, 0.54, -0.36);
+                head.castShadow = true;
+                group.add(head);
+
+                // Snout
+                const snoutGeo = new THREE.BoxGeometry(0.12, 0.1, 0.14);
+                const snoutMat = new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.7 });
+                const snout = new THREE.Mesh(snoutGeo, snoutMat);
+                snout.position.set(0, 0.5, -0.48);
+                group.add(snout);
+
+                // Ears
+                const earGeo = isCat 
+                    ? new THREE.ConeGeometry(0.06, 0.12, 4) // Pointy Cat ears
+                    : new THREE.BoxGeometry(0.06, 0.18, 0.08); // Drooping Dog/Wolf ears
+                const earMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.8 });
+                const earL = new THREE.Mesh(earGeo, earMat);
+                const earR = new THREE.Mesh(earGeo, earMat);
+                
+                if (isCat) {
+                    earL.position.set(-0.12, 0.7, -0.32);
+                    earR.position.set(0.12, 0.7, -0.32);
+                } else {
+                    earL.position.set(-0.19, 0.55, -0.32);
+                    earR.position.set(0.19, 0.55, -0.32);
+                }
+                group.add(earL);
+                group.add(earR);
+
+                // 4 legs
+                const legGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.38, 8);
+                const legL1 = new THREE.Mesh(legGeo, materials.customMaterial);
+                const legR1 = new THREE.Mesh(legGeo, materials.customMaterial);
+                const legL2 = new THREE.Mesh(legGeo, materials.customMaterial);
+                const legR2 = new THREE.Mesh(legGeo, materials.customMaterial);
+                
+                legL1.position.set(-0.18, 0.05, -0.22);
+                legR1.position.set(0.18, 0.05, -0.22);
+                legL2.position.set(-0.18, 0.05, 0.22);
+                legR2.position.set(0.18, 0.05, 0.22);
+                
+                group.add(legL1); group.add(legR1);
+                group.add(legL2); group.add(legR2);
+            }
+        }
+        else if (prompt.includes('personaje') || prompt.includes('character') || prompt.includes('npc') || prompt.includes('humano') || prompt.includes('guerrero') || prompt.includes('warrior') || prompt.includes('mago') || prompt.includes('mage') || prompt.includes('pícaro') || prompt.includes('rogue') || prompt.includes('sanador') || prompt.includes('healer') || prompt.includes('goblin') || prompt.includes('esqueleto') || prompt.includes('skeleton') || prompt.includes('orco') || prompt.includes('orc') || prompt.includes('ghost') || prompt.includes('fantasma') || prompt.includes('slime') || prompt.includes('monstruo') || prompt.includes('monster') || prompt.includes('golem') || prompt.includes('boss') || prompt.includes('princesa') || prompt.includes('princess') || prompt.includes('vago') || prompt.includes('beggar') || prompt.includes('noble')) {
             // --- Stylized Premium 3D Character Model ---
             // Torso (maps custom texture!)
             const torsoGeo = new THREE.BoxGeometry(0.52, 0.72, 0.36);
@@ -3671,8 +3770,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeEmotionBtn = document.querySelector('#char-emotion-grid .emotion-btn.active');
         const emotion = activeEmotionBtn ? activeEmotionBtn.getAttribute('data-emotion') : 'neutral';
 
-        // If it's a monster/creature
-        const monsterTypes = ['slime', 'goblin', 'skeleton', 'dragon', 'orc', 'ghost', 'spider', 'bat', 'wolf', 'golem', 'boss'];
+        // If it's a monster/creature or animal
+        const monsterTypes = ['slime', 'goblin', 'skeleton', 'dragon', 'orc', 'ghost', 'spider', 'bat', 'wolf', 'dog', 'cat', 'chicken', 'golem', 'boss'];
         if (monsterTypes.includes(type)) {
             if (type === 'slime') drawCreatureSlime(cx, cy, primary, accent, glow, style);
             else if (type === 'goblin') drawCreatureGoblin(cx, cy, primary, accent, glow, style);
@@ -3683,12 +3782,14 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (type === 'spider') drawCreatureSpider(cx, cy, primary, accent, glow, style);
             else if (type === 'bat') drawCreatureBat(cx, cy, primary, accent, glow, style);
             else if (type === 'wolf') drawCreatureWolf(cx, cy, primary, accent, glow, style);
+            else if (type === 'dog') drawCreatureDog(cx, cy, primary, accent, glow, style);
+            else if (type === 'cat') drawCreatureCat(cx, cy, primary, accent, glow, style);
+            else if (type === 'chicken') drawCreatureChicken(cx, cy, primary, accent, glow, style);
             else if (type === 'golem') drawCreatureGolem(cx, cy, primary, accent, glow, style);
             else if (type === 'boss') drawCreatureBoss(cx, cy, primary, accent, glow, style);
             ctx.restore();
             return;
         }
-
         // Draw Cape Behind (if enabled)
         if (hasCape) {
             ctx.fillStyle = darkenColor(primary, 40);
@@ -3703,12 +3804,46 @@ document.addEventListener('DOMContentLoaded', () => {
             opts.bodyH = 38*S; opts.bodyW = 26*S; opts.legH = 26*S; opts.headR = 24*S;
         } else if (type === 'guard' || type === 'paladin' || type === 'blacksmith') {
             opts.bodyW = 38*S; opts.bodyH = 60*S;
+        } else if (type === 'princess') {
+            opts.bodyH = 58*S; opts.bodyW = 30*S;
         }
 
-        const pantsColor = darkenColor(primary, 50);
+        // Custom colors for specific NPC types
+        let clothingColor = primary;
+        let pantsColor = darkenColor(primary, 50);
+        
+        if (type === 'beggar') {
+            clothingColor = '#78350f'; // Rags brown
+            pantsColor = '#451a03';
+        } else if (type === 'princess') {
+            clothingColor = primary; // Keep beautiful primary dress color
+        }
 
         // Core base humanoid
-        const { torsoTop, torsoBot, headR, bodyW, armW } = drawHumanoidBase(cx, cy - 15*S, skin, primary, pantsColor, S, px, opts);
+        const { torsoTop, torsoBot, headR, bodyW, armW } = drawHumanoidBase(cx, cy - 15*S, skin, clothingColor, pantsColor, S, px, opts);
+
+        // Princess dress overlay (flowing skirt over the legs)
+        if (type === 'princess') {
+            ctx.fillStyle = clothingColor;
+            ctx.beginPath();
+            ctx.moveTo(cx - bodyW * 0.55, torsoBot - 6*S);
+            ctx.lineTo(cx - bodyW * 1.1, torsoBot + 32*S);
+            ctx.lineTo(cx + bodyW * 1.1, torsoBot + 32*S);
+            ctx.lineTo(cx + bodyW * 0.55, torsoBot - 6*S);
+            ctx.closePath();
+            ctx.fill();
+            // Dress trim
+            ctx.fillStyle = accent;
+            ctx.fillRect(cx - bodyW * 1.0, torsoBot + 28*S, bodyW * 2.0, 4*S);
+        }
+
+        // Beggar tattered details (draw patches)
+        if (type === 'beggar') {
+            ctx.fillStyle = '#4b5563'; // Grey patches
+            ctx.fillRect(cx - bodyW * 0.3, torsoTop + 14*S, 6*S, 6*S);
+            ctx.fillStyle = '#065f46'; // Green patch on arm
+            ctx.fillRect(cx + bodyW * 0.5, torsoTop + 10*S, 4*S, 6*S);
+        }
 
         // Render hair
         ctx.fillStyle = hair;
@@ -3724,6 +3859,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = '#d1d5db';
                 ctx.ellipse(cx - headR*0.7, torsoTop - headR*0.4, headR*0.4, headR*0.6, 0.2, 0, Math.PI*2);
                 ctx.ellipse(cx + headR*0.7, torsoTop - headR*0.4, headR*0.4, headR*0.6, -0.2, 0, Math.PI*2);
+            } else if (type === 'princess') {
+                // Long elegant flowing hair
+                ctx.ellipse(cx - headR*0.75, torsoTop - headR*0.1, headR*0.4, headR*1.4, 0.05, 0, Math.PI*2);
+                ctx.ellipse(cx + headR*0.75, torsoTop - headR*0.1, headR*0.4, headR*1.4, -0.05, 0, Math.PI*2);
             } else {
                 ctx.ellipse(cx - headR*0.8, torsoTop - headR*0.3, headR*0.35, headR*0.6, 0.1, 0, Math.PI*2);
                 ctx.ellipse(cx + headR*0.8, torsoTop - headR*0.3, headR*0.35, headR*0.6, -0.1, 0, Math.PI*2);
@@ -3732,16 +3871,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Apply accessories dynamically
-        if (hasHat || type === 'mage' || type === 'noble' || type === 'merchant') {
-            ctx.fillStyle = type === 'noble' ? '#d4a017' : darkenColor(primary, 30);
-            if (type === 'noble') {
-                // Crown
+        if (hasHat || type === 'mage' || type === 'noble' || type === 'princess' || type === 'merchant') {
+            ctx.fillStyle = (type === 'noble' || type === 'princess') ? '#d4a017' : darkenColor(primary, 30);
+            if (type === 'noble' || type === 'princess') {
+                // Crown / Tiara
                 ctx.beginPath();
                 ctx.moveTo(cx - headR*0.9, torsoTop - headR*0.9);
                 ctx.lineTo(cx - headR*0.9, torsoTop - headR*1.3);
-                ctx.lineTo(cx - headR*0.4, torsoTop - headR*1.1);
-                ctx.lineTo(cx, torsoTop - headR*1.5);
-                ctx.lineTo(cx + headR*0.4, torsoTop - headR*1.1);
+                if (type === 'princess') {
+                    // Small delicate tiara
+                    ctx.lineTo(cx - headR*0.3, torsoTop - headR*1.15);
+                    ctx.lineTo(cx, torsoTop - headR*1.4);
+                    ctx.lineTo(cx + headR*0.3, torsoTop - headR*1.15);
+                } else {
+                    // Full king crown
+                    ctx.lineTo(cx - headR*0.4, torsoTop - headR*1.1);
+                    ctx.lineTo(cx, torsoTop - headR*1.5);
+                    ctx.lineTo(cx + headR*0.4, torsoTop - headR*1.1);
+                }
                 ctx.lineTo(cx + headR*0.9, torsoTop - headR*1.3);
                 ctx.lineTo(cx + headR*0.9, torsoTop - headR*0.9);
                 ctx.closePath(); ctx.fill();
@@ -4891,7 +5038,6 @@ document.addEventListener('DOMContentLoaded', () => {
         paws.forEach(([px2, py]) => {
             ctx.fillStyle = fur; ctx.beginPath(); ctx.roundRect(cx+px2-6*S, cy+py, 12*S, 28*S, [4*S,4*S,8*S,8*S]); ctx.fill();
         });
-
         // Tail
         ctx.strokeStyle = fur; ctx.lineWidth = 16*S; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(cx + 45*S, cy - 5*S); ctx.quadraticCurveTo(cx + 75*S, cy - 40*S, cx + 60*S, cy - 60*S); ctx.stroke();
@@ -4929,6 +5075,177 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let t = -2; t <= 1; t++) {
             ctx.beginPath(); ctx.moveTo(cx - 70*S + t*4*S, cy - 22*S); ctx.lineTo(cx - 68*S + t*4*S, cy - 15*S); ctx.lineTo(cx - 66*S + t*4*S, cy - 22*S); ctx.closePath(); ctx.fill();
         }
+
+        ctx.restore();
+    }
+
+    // ─── DOG ───────────────────────────────────────────────────────────────
+    function drawCreatureDog(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        drawDropShadow(cx, cy + 60*S, 48*S, 14*S, 0.4);
+
+        const fur = base;
+        const belly = lightenColor(acc, 20);
+
+        // Body
+        ctx.fillStyle = fur;
+        ctx.beginPath(); ctx.ellipse(cx, cy + 8*S, 44*S, 30*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Belly patch
+        ctx.fillStyle = belly;
+        ctx.beginPath(); ctx.ellipse(cx - 5*S, cy + 12*S, 25*S, 18*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // 4 Legs
+        const paws = [[-24*S,32*S],[-8*S,32*S],[8*S,32*S],[24*S,32*S]];
+        ctx.fillStyle = fur;
+        paws.forEach(([px, py]) => {
+            ctx.beginPath(); ctx.roundRect(cx+px-5*S, cy+py, 10*S, 26*S, 5*S); ctx.fill();
+        });
+
+        // Tail
+        ctx.strokeStyle = fur; ctx.lineWidth = 10*S; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(cx + 38*S, cy - 2*S); ctx.quadraticCurveTo(cx + 60*S, cy - 25*S, cx + 55*S, cy - 35*S); ctx.stroke();
+
+        // Neck
+        ctx.fillStyle = fur;
+        ctx.beginPath(); ctx.ellipse(cx - 30*S, cy - 18*S, 16*S, 20*S, -0.3, 0, Math.PI*2); ctx.fill();
+
+        // Head
+        ctx.beginPath(); ctx.ellipse(cx - 42*S, cy - 28*S, 22*S, 20*S, -0.1, 0, Math.PI*2); ctx.fill();
+
+        // Muzzle / Snout (friendly dog mouth)
+        ctx.fillStyle = belly;
+        ctx.beginPath(); ctx.ellipse(cx - 58*S, cy - 24*S, 12*S, 9*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(cx - 64*S, cy - 27*S, 3.5*S, 0, Math.PI*2); ctx.fill(); // Nose
+
+        // Tongue
+        ctx.fillStyle = '#f87171';
+        ctx.beginPath(); ctx.roundRect(cx - 60*S, cy - 19*S, 6*S, 10*S, 3*S); ctx.fill();
+
+        // Floppy Ears
+        ctx.fillStyle = darkenColor(fur, 15);
+        ctx.beginPath(); ctx.ellipse(cx - 38*S, cy - 26*S, 8*S, 16*S, 0.25, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx - 48*S, cy - 26*S, 8*S, 16*S, -0.25, 0, Math.PI*2); ctx.fill();
+
+        // Big friendly eyes
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(cx - 46*S, cy - 34*S, 4.5*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx - 34*S, cy - 34*S, 4.5*S, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#1e1b4b';
+        ctx.beginPath(); ctx.arc(cx - 46*S, cy - 34*S, 2.5*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx - 34*S, cy - 34*S, 2.5*S, 0, Math.PI*2); ctx.fill();
+
+        ctx.restore();
+    }
+
+    // ─── CAT ───────────────────────────────────────────────────────────────
+    function drawCreatureCat(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        drawDropShadow(cx, cy + 60*S, 42*S, 12*S, 0.35);
+
+        const coat = base;
+        const chest = lightenColor(acc, 20);
+
+        // Body (slender)
+        ctx.fillStyle = coat;
+        ctx.beginPath(); ctx.ellipse(cx, cy + 12*S, 38*S, 24*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Chest patch
+        ctx.fillStyle = chest;
+        ctx.beginPath(); ctx.ellipse(cx - 10*S, cy + 14*S, 20*S, 15*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // 4 Legs
+        const paws = [[-20*S,32*S],[-6*S,32*S],[6*S,32*S],[20*S,32*S]];
+        ctx.fillStyle = coat;
+        paws.forEach(([px, py]) => {
+            ctx.beginPath(); ctx.roundRect(cx+px-4*S, cy+py, 8*S, 26*S, 4*S); ctx.fill();
+        });
+
+        // Elegant curved tail
+        ctx.strokeStyle = coat; ctx.lineWidth = 6*S; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(cx + 34*S, cy + 4*S); ctx.quadraticCurveTo(cx + 65*S, cy - 10*S, cx + 55*S, cy - 40*S); ctx.stroke();
+
+        // Neck
+        ctx.fillStyle = coat;
+        ctx.beginPath(); ctx.ellipse(cx - 24*S, cy - 14*S, 12*S, 18*S, -0.2, 0, Math.PI*2); ctx.fill();
+
+        // Head
+        ctx.beginPath(); ctx.ellipse(cx - 32*S, cy - 25*S, 19*S, 18*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Pointy Ears
+        ctx.fillStyle = darkenColor(coat, 20);
+        ctx.beginPath(); ctx.moveTo(cx - 45*S, cy - 38*S); ctx.lineTo(cx - 48*S, cy - 54*S); ctx.lineTo(cx - 34*S, cy - 42*S); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx - 26*S, cy - 38*S); ctx.lineTo(cx - 22*S, cy - 54*S); ctx.lineTo(cx - 18*S, cy - 42*S); ctx.closePath(); ctx.fill();
+
+        // Eyes (green/yellow slitted)
+        ctx.fillStyle = '#a3e635'; // Lime green
+        ctx.beginPath(); ctx.ellipse(cx - 38*S, cy - 28*S, 5*S, 4*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx - 26*S, cy - 28*S, 5*S, 4*S, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000'; // Slit pupil
+        ctx.fillRect(cx - 39*S, cy - 31*S, 2*S, 6*S);
+        ctx.fillRect(cx - 27*S, cy - 31*S, 2*S, 6*S);
+
+        // Muzzle & whiskers
+        ctx.fillStyle = chest;
+        ctx.beginPath(); ctx.arc(cx - 34*S, cy - 20*S, 3.5*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx - 30*S, cy - 20*S, 3.5*S, 0, Math.PI*2); ctx.fill();
+        
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1*S;
+        ctx.beginPath(); ctx.moveTo(cx - 36*S, cy - 20*S); ctx.lineTo(cx - 48*S, cy - 22*S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - 36*S, cy - 20*S); ctx.lineTo(cx - 46*S, cy - 16*S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - 28*S, cy - 20*S); ctx.lineTo(cx - 16*S, cy - 22*S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - 28*S, cy - 20*S); ctx.lineTo(cx - 18*S, cy - 16*S); ctx.stroke();
+
+        ctx.restore();
+    }
+
+    // ─── CHICKEN ───────────────────────────────────────────────────────────
+    function drawCreatureChicken(cx, cy, base, acc, glow, style) {
+        ctx.save();
+        const S = canvas.width / 256;
+        drawDropShadow(cx, cy + 50*S, 34*S, 10*S, 0.35);
+
+        // Body (plump round chicken)
+        ctx.fillStyle = '#f8fafc'; // White feathers base
+        ctx.beginPath(); ctx.arc(cx, cy + 8*S, 32*S, 0, Math.PI*2); ctx.fill();
+
+        // Wing
+        ctx.fillStyle = '#f1f5f9';
+        ctx.beginPath(); ctx.ellipse(cx + 8*S, cy + 12*S, 16*S, 10*S, 0.2, 0, Math.PI*2); ctx.fill();
+
+        // Comb (Crest on top)
+        ctx.fillStyle = '#ef4444'; // Bright red
+        ctx.beginPath(); ctx.arc(cx - 8*S, cy - 25*S, 7*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy - 29*S, 8*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 8*S, cy - 25*S, 6*S, 0, Math.PI*2); ctx.fill();
+        // Wattles under beak
+        ctx.beginPath(); ctx.ellipse(cx - 22*S, cy - 4*S, 4*S, 8*S, 0, 0, Math.PI*2); ctx.fill();
+
+        // Beak (small orange triangle)
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath();
+        ctx.moveTo(cx - 24*S, cy - 12*S);
+        ctx.lineTo(cx - 36*S, cy - 8*S);
+        ctx.lineTo(cx - 24*S, cy - 4*S);
+        ctx.closePath(); ctx.fill();
+
+        // Legs (thin orange sticks)
+        ctx.strokeStyle = '#f97316'; ctx.lineWidth = 3.5*S; ctx.lineCap = 'round';
+        [[-8*S],[8*S]].forEach(([lx]) => {
+            ctx.beginPath(); ctx.moveTo(cx + lx, cy + 34*S); ctx.lineTo(cx + lx, cy + 50*S); ctx.stroke();
+            // Feet
+            ctx.beginPath(); ctx.moveTo(cx + lx, cy + 50*S); ctx.lineTo(cx + lx - 6*S, cy + 54*S); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx + lx, cy + 50*S); ctx.lineTo(cx + lx + 6*S, cy + 54*S); ctx.stroke();
+        });
+
+        // Eyes (black dot with shine)
+        ctx.fillStyle = '#000000';
+        ctx.beginPath(); ctx.arc(cx - 15*S, cy - 14*S, 3.5*S, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(cx - 16.5*S, cy - 15.5*S, 1*S, 0, Math.PI*2); ctx.fill();
 
         ctx.restore();
     }

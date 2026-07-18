@@ -106,9 +106,9 @@ const HFGenerator = (() => {
                 signal: AbortSignal.timeout(90000) // 90s timeout
             });
         } catch (fetchErr) {
-            // If DNS/Connection failed, try via a public CORS/DNS bypass gateway
-            console.warn('[HFGenerator] Direct fetch failed, trying via proxy gateway...', fetchErr);
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(modelUrl)}`;
+            // Try another free transparent bridge
+            console.warn('[HFGenerator] Direct fetch failed, trying alternate CORS gateway...', fetchErr);
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(modelUrl)}`;
             response = await fetch(proxyUrl, {
                 method: 'POST',
                 headers: {

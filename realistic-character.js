@@ -132,26 +132,21 @@ const RealisticCharacter = (function () {
         return new THREE.CylinderGeometry(rTop, rBot, height, segs, 3);
     }
 
-    /** Skin material with SSS simulation and custom canvas mapping support */
+    /** Skin material with SSS simulation */
     function skinMat(color) {
         const c = new THREE.Color(color);
-        // If a canvas texture is available, we blend it or use standard texture mapping
-        const texture = window.materials && window.materials.canvasTex ? window.materials.canvasTex : null;
         return new THREE.MeshStandardMaterial({
             color: c,
-            map: texture,
             roughness: 0.65,
             metalness: 0.02,
             emissive: c.clone().multiplyScalar(0.08),
         });
     }
 
-    /** Cloth material with canvas texture support for complex clothing patterns */
+    /** Cloth material */
     function clothMat(color, rough = 0.85) {
-        const texture = window.materials && window.materials.canvasTex ? window.materials.canvasTex : null;
         return new THREE.MeshStandardMaterial({
             color: new THREE.Color(color),
-            map: texture,
             roughness: rough,
             metalness: 0.05,
         });

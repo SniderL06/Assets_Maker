@@ -15,10 +15,14 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <!-- Simple OBJ Exporter for 3D export -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
+    <!-- GLTFLoader for Tripo3D model loading -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <!-- Realistic Character System -->
     <script src="realistic-character.js"></script>
     <!-- HuggingFace AI Generator -->
     <script src="hf-generator.js"></script>
+    <!-- Tripo3D 3D AI Generator -->
+    <script src="tripo3d-generator.js"></script>
     <!-- Style Sheet -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -121,16 +125,33 @@
                     </div>
 
                     <div class="form-group">
-                        <label>Motor de Generación</label>
+                        <label>Motor de Generación 2D</label>
                         <div style="display: flex; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 8px; border: 1px solid var(--border-color); gap: 4px;">
-                            <button type="button" id="engine-procedural" class="btn btn-secondary btn-sm" style="flex: 1; padding: 6px; font-size: 0.72rem; border-radius: 6px;" title="Generación instantánea local">⚡ Procedural Rápido</button>
-                            <button type="button" id="engine-advanced" class="btn btn-accent btn-sm active" style="flex: 1; padding: 6px; font-size: 0.72rem; border-radius: 6px;" title="Stable Diffusion XL en la nube">🧠 IA Avanzada (HF)</button>
+                            <button type="button" id="engine-procedural" class="btn btn-secondary btn-sm" style="flex: 1; padding: 6px; font-size: 0.72rem; border-radius: 6px;" title="Generación instantánea local">⚡ Procedural</button>
+                            <button type="button" id="engine-advanced" class="btn btn-accent btn-sm active" style="flex: 1; padding: 6px; font-size: 0.72rem; border-radius: 6px;" title="Stable Diffusion XL en la nube">🧠 HuggingFace</button>
                         </div>
                         <!-- HF Status indicator -->
                         <div id="hf-status-bar" style="margin-top: 6px; padding: 6px 10px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.2); border-radius: 6px; font-size: 0.7rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
-                            <span id="hf-status-dot" style="width: 7px; height: 7px; border-radius: 50%; background: #22c55e; display: inline-block; flex-shrink: 0;"></span>
-                            <span id="hf-status-text">10 tokens HuggingFace activos · FLUX.1-schnell + SDXL</span>
+                            <span id="hf-status-dot" style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block; flex-shrink: 0;"></span>
+                            <span id="hf-status-text">10 tokens HF · FLUX.1-schnell + SDXL (requiere conexión)</span>
                         </div>
+                    </div>
+
+                    <!-- ═══ TRIPO3D — 3D IA SECTION ═══ -->
+                    <div class="form-group" style="border-top: 1px solid rgba(168,85,247,0.15); padding-top: 12px; margin-top: 4px;">
+                        <label style="color: #a78bfa; font-weight: 600;">🎲 Generación 3D con IA (Tripo3D)</label>
+                        <div id="tripo3d-key-area" style="margin-top: 6px;">
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <input type="password" id="tripo3d-api-key" placeholder="tu_api_key_de_tripo3d" class="form-control" style="flex: 1; font-size: 0.75rem; padding: 5px 8px;" />
+                                <button type="button" id="tripo3d-save-key" class="btn btn-secondary btn-sm" style="white-space: nowrap; padding: 5px 10px; font-size: 0.72rem;">💾 Guardar</button>
+                            </div>
+                            <div style="margin-top: 5px; font-size: 0.68rem; color: var(--text-muted); line-height: 1.4;">
+                                <span id="tripo3d-key-status">🔑 Sin clave. Regístrate gratis en </span><a href="https://platform.tripo3d.ai" target="_blank" style="color: #a78bfa;">platform.tripo3d.ai</a> — 200 créditos gratis.
+                            </div>
+                        </div>
+                        <button type="button" id="tripo3d-generate-btn" class="btn btn-secondary btn-sm" style="margin-top: 8px; width: 100%; padding: 8px; font-size: 0.8rem; border: 1px solid rgba(168,85,247,0.4); color: #c4b5fd;" title="Genera un modelo 3D real con IA Tripo3D">
+                            🎲 Generar Modelo 3D Real con IA
+                        </button>
                     </div>
 
                     <button class="btn btn-accent btn-large btn-glowing" id="generate-btn">

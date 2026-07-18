@@ -1195,6 +1195,95 @@ document.addEventListener('DOMContentLoaded', () => {
     // Call during init
     initEngineButtons();
 
+    // ─── TRIPO3D 3D AI INTEGRATION ───────────────────────────────────────────
+    function initTripo3D() {
+        const saveKeyBtn     = document.getElementById('tripo3d-save-key');
+        const keyInput       = document.getElementById('tripo3d-api-key');
+        const keyStatus      = document.getElementById('tripo3d-key-status');
+        const generateBtn    = document.getElementById('tripo3d-generate-btn');
+
+        if (!saveKeyBtn || !keyInput || !generateBtn) return;
+
+        function updateKeyStatus() {
+            if (window.Tripo3DGenerator && Tripo3DGenerator.hasKey()) {
+                if (keyStatus) keyStatus.textContent = '✅ Clave Tripo3D activa — listo para generar 3D real';
+                if (generateBtn) {
+                    generateBtn.style.background = 'rgba(168,85,247,0.2)';
+                    generateBtn.style.borderColor = 'rgba(168,85,247,0.7)';
+                }
+            } else {
+                if (keyStatus) keyStatus.innerHTML = '🔑 Sin clave. Regístrate gratis en <a href="https://platform.tripo3d.ai" target="_blank" style="color:#a78bfa;">platform.tripo3d.ai</a> — 200 créditos gratis.';
+            }
+        }
+
+        // Restore saved key
+        if (window.Tripo3DGenerator) {
+            const saved = Tripo3DGenerator.loadSavedKey();
+            if (saved) {
+                keyInput.value = saved;
+                updateKeyStatus();
+            }
+        }
+
+        saveKeyBtn.addEventListener('click', () => {
+            const key = keyInput.value.trim();
+            if (!key) {
+                showNotification('⚠️ Ingresa una API key válida de Tripo3D');
+                return;
+            }
+            if (window.Tripo3DGenerator) Tripo3DGenerator.setApiKey(key);
+            updateKeyStatus();
+            showNotification('✅ Clave Tripo3D guardada correctamente');
+        });
+
+        generateBtn.addEventListener('click', async () => {
+            if (!window.Tripo3DGenerator || !Tripo3DGenerator.hasKey()) {
+                showNotification('⚠️ Primero guarda tu API key de Tripo3D. Regístrate gratis en platform.tripo3d.ai');
+                return;
+            }
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                showNotification('⚠️ Escribe un prompt para generar el modelo 3D');
+                return;
+            }
+
+            // Switch to 3D view
+            const threeContainer = document.getElementById('three-container');
+            const canvasContainer = document.getElementById('canvas-container');
+            if (threeContainer) threeContainer.style.display = 'block';
+            if (canvasContainer) canvasContainer.style.display = 'none';
+
+            const activeStyleOpt = document.querySelector('.style-option.active');
+            const style = activeStyleOpt ? activeStyleOpt.getAttribute('data-style') : 'cartoon';
+
+            showLoader('🎲 Tripo3D — Generando modelo 3D real...', 'Enviando prompt a la nube...');
+            updateLoaderProgress(5, 'Conectando con Tripo3D...');
+
+            try {
+                const { model } = await Tripo3DGenerator.generateAndLoad(prompt, {
+                    styleHint: style,
+                    onProgress: (pct, msg) => updateLoaderProgress(pct, msg)
+                });
+
+                // Remove existing mesh and add the new GLB model
+                if (currentMesh) scene.remove(currentMesh);
+                currentMesh = model;
+                scene.add(currentMesh);
+                orbitControls.target.set(0, 0.5, 0);
+                orbitControls.update();
+
+                hideLoader();
+                showNotification('🎲 Modelo 3D real generado por Tripo3D. ¡Puedes rotarlo con el ratón!');
+
+            } catch (err) {
+                hideLoader();
+                console.error('[Tripo3D] Error:', err);
+                showNotification(`⚠️ Tripo3D: ${err.message.slice(0, 100)}`);
+            }
+        });
+    }
+    initTripo3D();
+
     async function triggerAIGenerate() {
         const prompt = promptInput.value.trim();
         if (!prompt) {

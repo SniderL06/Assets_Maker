@@ -129,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Three.js variables
     let scene, camera, renderer, currentMesh, materials = {}, orbitControls;
     let autoRotate = false;
+    let jointController = null;
 
     // --- Initial Setup ---
     function init() {
@@ -607,6 +608,18 @@ document.addEventListener('DOMContentLoaded', () => {
             // Accessories checkboxes
             charEditorPanel.querySelectorAll('.acc-toggle input[type="checkbox"]').forEach(chk => {
                 chk.addEventListener('change', redrawActiveCharacter);
+            });
+
+            // 3D Pose Presets wiring
+            charEditorPanel.querySelectorAll('.pose-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    charEditorPanel.querySelectorAll('.pose-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const pose = btn.getAttribute('data-pose');
+                    if (jointController) {
+                        jointController.applyPose(pose);
+                    }
+                });
             });
 
             // Regenerate button
@@ -3591,68 +3604,53 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (prompt.includes('personaje') || prompt.includes('character') || prompt.includes('npc') || prompt.includes('humano') || prompt.includes('guerrero') || prompt.includes('warrior') || prompt.includes('mago') || prompt.includes('mage') || prompt.includes('pícaro') || prompt.includes('rogue') || prompt.includes('sanador') || prompt.includes('healer') || prompt.includes('goblin') || prompt.includes('esqueleto') || prompt.includes('skeleton') || prompt.includes('orco') || prompt.includes('orc') || prompt.includes('ghost') || prompt.includes('fantasma') || prompt.includes('slime') || prompt.includes('monstruo') || prompt.includes('monster') || prompt.includes('golem') || prompt.includes('boss') || prompt.includes('princesa') || prompt.includes('princess') || prompt.includes('vago') || prompt.includes('beggar') || prompt.includes('noble')) {
             // --- Stylized Premium 3D Character Model ---
             // Torso (maps custom texture!)
-            const torsoGeo = new THREE.BoxGeometry(0.52, 0.72, 0.36);
-            const torso = new THREE.Mesh(torsoGeo, materials.customMaterial);
-            torso.position.y = 0.35;
-            torso.castShadow = true;
-            torso.receiveShadow = true;
-            group.add(torso);
+            // Get customizable variables from UI
+            const activeTypeBtn = document.querySelector('#char-editor-panel .char-type-btn.active');
+            const characterType = activeTypeBtn ? activeTypeBtn.getAttribute('data-type') : 'warrior';
 
-            // Head (uses custom material texture to project the painted face details!)
-            const headGeo = new THREE.BoxGeometry(0.44, 0.42, 0.42);
-            const head = new THREE.Mesh(headGeo, materials.customMaterial);
-            head.position.y = 0.82;
-            head.castShadow = true;
-            group.add(head);
+            const activeSkin = document.querySelector('#char-editor-panel .skin-swatch.selected');
+            const skinColor = activeSkin ? activeSkin.getAttribute('data-skin') : '#e8b89a';
 
-            // Hair (matching active selection)
-            const hairColorHex = document.querySelector('.hair-swatch.selected')?.getAttribute('data-hair') || '#1a0a00';
-            const hairGeo = new THREE.SphereGeometry(0.26, 16, 16, 0, Math.PI * 2, 0, Math.PI / 1.6);
-            const hairMat = new THREE.MeshStandardMaterial({
-                color: new THREE.Color(hairColorHex),
-                roughness: 0.85
+            const activeHair = document.querySelector('#char-editor-panel .hair-swatch.selected');
+            const hairColor = activeHair ? activeHair.getAttribute('data-hair') : '#1a0a00';
+
+            const outfitPrimary = document.getElementById('char-outfit-primary')?.value || '#4a6fa5';
+            const outfitAccent = document.getElementById('char-outfit-accent')?.value || '#2d3a4a';
+
+            // Check gender/variants from prompt or settings
+            const gender = prompt.includes('female') || prompt.includes('mujer') || prompt.includes('chica') || prompt.includes('princesa') || prompt.includes('reina') ? 'female' : 'male';
+
+            // Build realistic mesh using modular organic procedural constructor
+            const realChar = RealisticCharacter.build({
+                type: characterType,
+                skinColor: skinColor,
+                hairColor: hairColor,
+                primaryColor: outfitPrimary,
+                accentColor: outfitAccent,
+                gender: gender
             });
-            const hair = new THREE.Mesh(hairGeo, hairMat);
-            hair.position.set(0, 0.86, -0.02);
-            hair.rotation.x = 0.2;
-            hair.castShadow = true;
-            group.add(hair);
 
-            // Legs
-            const legGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.5, 12);
-            const legMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.8 });
-            const legL = new THREE.Mesh(legGeo, legMat);
-            legL.position.set(-0.15, -0.15, 0);
-            legL.castShadow = true;
-            const legR = new THREE.Mesh(legGeo, legMat);
-            legR.position.set(0.15, -0.15, 0);
-            legR.castShadow = true;
-            group.add(legL);
-            group.add(legR);
+            group.add(realChar);
 
-            // Arms (uses the custom material texture map)
-            const armGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.55, 12);
-            const armL = new THREE.Mesh(armGeo, materials.customMaterial);
-            armL.position.set(-0.35, 0.35, 0);
-            armL.rotation.z = 0.15;
-            armL.castShadow = true;
-            const armR = new THREE.Mesh(armGeo, materials.customMaterial);
-            armR.position.set(0.35, 0.35, 0);
-            armR.rotation.z = -0.15;
-            armR.castShadow = true;
-            group.add(armL);
-            group.add(armR);
-
-            // Sword or Weapon
-            if (prompt.includes('espada') || prompt.includes('sword') || prompt.includes('guerrero') || prompt.includes('warrior')) {
-                const weaponGeo = new THREE.BoxGeometry(0.04, 0.75, 0.015);
-                const weapon = new THREE.Mesh(weaponGeo, steelMat);
-                weapon.position.set(0.48, 0.48, 0.2);
-                weapon.rotation.x = -0.5;
-                weapon.castShadow = true;
-                group.add(weapon);
-            }
+            // Recreate joint controller interactions
+            setTimeout(() => {
+                if (jointController) {
+                    jointController.destroy();
+                    jointController = null;
+                }
+                if (renderer && camera) {
+                    jointController = RealisticCharacter.createJointController(realChar, renderer, camera, orbitControls);
+                    
+                    // Apply current active pose preset
+                    const activePoseBtn = document.querySelector('.pose-btn.active');
+                    if (activePoseBtn) {
+                        const poseName = activePoseBtn.getAttribute('data-pose');
+                        jointController.applyPose(poseName);
+                    }
+                }
+            }, 50);
         }
+
         else if (prompt.includes('escenario') || prompt.includes('escena') || prompt.includes('scenario') || prompt.includes('background') || prompt.includes('fondo') || prompt.includes('paisaje') || prompt.includes('landscape') || prompt.includes('bosque') || prompt.includes('forest') || prompt.includes('cueva') || prompt.includes('cave') || prompt.includes('ciudad') || prompt.includes('city') || prompt.includes('montaña') || prompt.includes('mountain') || prompt.includes('mar') || prompt.includes('sea')) {
             // --- 3D Scene Diorama ---
             

@@ -15,6 +15,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <!-- Simple OBJ Exporter for 3D export -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
+    <!-- Realistic Character System -->
+    <script src="realistic-character.js"></script>
     <!-- Style Sheet -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -279,7 +281,10 @@
                                 <i data-lucide="refresh-cw"></i> Auto Rotar
                             </button>
                         </div>
-                        <div id="three-viewport"></div>
+                        <div id="three-viewport" style="position: relative;">
+                            <!-- Floating Joint Editor Overlay -->
+                            <div id="joint-info-label" style="display: none; position: absolute; top: 12px; left: 12px; background: rgba(15, 23, 42, 0.85); color: #f8fafc; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(168, 85, 247, 0.4); font-size: 0.8rem; font-weight: bold; pointer-events: none; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></div>
+                        </div>
                     </div>
 
                     <!-- Grid Overlay toggle button -->
@@ -424,6 +429,22 @@
                                 <label class="acc-toggle"><input type="checkbox" id="acc-scarf"> 🧣 Bufanda</label>
                                 <label class="acc-toggle"><input type="checkbox" id="acc-glasses"> 👓 Gafas</label>
                                 <label class="acc-toggle"><input type="checkbox" id="acc-weapon"> ⚔️ Arma</label>
+                            </div>
+                        </div>
+                        
+                        <!-- Pose Presets Panel for 3D Rig -->
+                        <div class="form-group" id="char-pose-section">
+                            <label>Postura 3D (Huesos / Rig)</label>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;" id="char-pose-grid">
+                                <button class="btn btn-secondary btn-sm pose-btn active" data-pose="apose" style="padding: 6px; font-size: 0.72rem;">🧍 A-Pose</button>
+                                <button class="btn btn-secondary btn-sm pose-btn" data-pose="tpose" style="padding: 6px; font-size: 0.72rem;">🧍 T-Pose</button>
+                                <button class="btn btn-secondary btn-sm pose-btn" data-pose="combat" style="padding: 6px; font-size: 0.72rem;">⚔️ Combate</button>
+                                <button class="btn btn-secondary btn-sm pose-btn" data-pose="run" style="padding: 6px; font-size: 0.72rem;">🏃 Correr</button>
+                                <button class="btn btn-secondary btn-sm pose-btn" data-pose="rest" style="padding: 6px; font-size: 0.72rem;">🧘 Relajado</button>
+                                <button class="btn btn-secondary btn-sm pose-btn" data-pose="dance" style="padding: 6px; font-size: 0.72rem;">💃 Bailar</button>
+                            </div>
+                            <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 5px; text-align: center; font-style: italic;">
+                                💡 Haz clic en una articulación del modelo 3D y arrastra con el ratón para rotarla a tu gusto. Doble clic para restablecerla.
                             </div>
                         </div>
 

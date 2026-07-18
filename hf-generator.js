@@ -35,15 +35,15 @@ const HFGenerator = (() => {
     // --- Model Endpoints ---
     const MODELS = [
         // FLUX.1-schnell — fast, very high quality, runs well on free tier
-        'https://api.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
+        'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
         // SDXL — top quality
-        'https://api.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
         // SD 2.1 — reliable fallback
-        'https://api.huggingface.co/models/stabilityai/stable-diffusion-2-1',
+        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1',
         // Anything v4 — great for game art / anime style
-        'https://api.huggingface.co/models/xyn-ai/anything-v4.0',
+        'https://api-inference.huggingface.co/models/xyn-ai/anything-v4.0',
         // Dreamshaper — great for characters
-        'https://api.huggingface.co/models/Lykon/dreamshaper-8',
+        'https://api-inference.huggingface.co/models/Lykon/dreamshaper-8',
     ];
 
     // Style→model preference mapping
@@ -106,19 +106,10 @@ const HFGenerator = (() => {
                 signal: AbortSignal.timeout(90000) // 90s timeout
             });
         } catch (fetchErr) {
-            // Try another free transparent bridge
-            console.warn('[HFGenerator] Direct fetch failed, trying alternate CORS gateway...', fetchErr);
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(modelUrl)}`;
-            response = await fetch(proxyUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'X-Wait-For-Model': 'true'
-                },
-                body: JSON.stringify(body),
-                signal: AbortSignal.timeout(90000)
-            });
+            // No hay proxy de respaldo: los proxies CORS públicos no reenvían
+            // cabeceras Authorization, así que nunca funcionan aquí. Si esto falla,
+            // suele ser un problema de red/DNS o de que el token no es válido.
+            throw new Error(`No se pudo contactar con ${modelUrl}: ${fetchErr.message}`);
         }
 
         if (!response.ok) {

@@ -3422,6 +3422,43 @@ document.addEventListener('DOMContentLoaded', () => {
         return group;
     }
 
+    // ─── SHAPE HELPERS — reusable geometry builders so 3D props read as
+    // crafted objects (soft edges, real silhouettes) instead of raw
+    // Box/Cylinder primitives glued together. ─────────────────────────────
+    function createRoundedRectShape(w, h, r) {
+        const shape = new THREE.Shape();
+        const x = -w / 2, y = -h / 2;
+        r = Math.min(r, w / 2, h / 2);
+        shape.moveTo(x, y + r);
+        shape.lineTo(x, y + h - r);
+        shape.quadraticCurveTo(x, y + h, x + r, y + h);
+        shape.lineTo(x + w - r, y + h);
+        shape.quadraticCurveTo(x + w, y + h, x + w, y + h - r);
+        shape.lineTo(x + w, y + r);
+        shape.quadraticCurveTo(x + w, y, x + w - r, y);
+        shape.lineTo(x + r, y);
+        shape.quadraticCurveTo(x, y, x, y + r);
+        return shape;
+    }
+
+    // Drop-in replacement for `new THREE.BoxGeometry(w,h,d)` with softened,
+    // beveled edges that catch light instead of a flat plastic-looking box.
+    function createBeveledBox(w, h, depth, bevel = Math.min(w, h) * 0.08) {
+        bevel = Math.min(bevel, depth / 2 - 0.001, Math.min(w, h) / 2 - 0.001);
+        bevel = Math.max(bevel, 0.001);
+        const shape = createRoundedRectShape(w, h, bevel * 1.4);
+        const geo = new THREE.ExtrudeGeometry(shape, {
+            depth: depth - bevel * 2,
+            bevelEnabled: true,
+            bevelThickness: bevel,
+            bevelSize: bevel,
+            bevelSegments: 3,
+            curveSegments: 6
+        });
+        geo.translate(0, 0, -(depth - bevel * 2) / 2 - bevel);
+        return geo;
+    }
+
     function generateReal3DMesh() {
         const group = new THREE.Group();
         const prompt = promptInput.value.toLowerCase();
@@ -3475,40 +3512,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isKatana) {
                 // --- 3D Katana (Japanese Sword) ---
-                // Grip (longer, slightly curved representation)
-                const gripGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.45, 12);
+                // Grip with wrapped ito ridges
+                const gripGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.45, 16);
                 const gripMatCustom = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 }); // Black wrap
                 const grip = new THREE.Mesh(gripGeo, gripMatCustom);
                 grip.position.set(-0.02, -0.42, 0);
                 grip.rotation.z = 0.08; // slightly angled grip
+                grip.castShadow = true;
                 group.add(grip);
+                const itoMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.9 });
+                for (let i = 0; i < 7; i++) {
+                    const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.037, 0.005, 6, 10), itoMat);
+                    wrap.rotation.x = Math.PI / 2;
+                    wrap.position.set(-0.02 - i * 0.006, -0.63 + i * 0.062, 0);
+                    group.add(wrap);
+                }
 
                 // Kashira (pommel cap)
-                const pommelGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.05, 12);
+                const pommelGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.05, 16);
                 const pommel = new THREE.Mesh(pommelGeo, goldMat);
                 pommel.position.set(-0.04, -0.65, 0);
                 pommel.rotation.z = 0.08;
                 group.add(pommel);
 
                 // Tsuba (Japanese Circular Guard)
-                const guardGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.02, 24);
+                const guardGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.02, 32);
                 const guard = new THREE.Mesh(guardGeo, goldMat);
                 guard.position.set(0, -0.2, 0);
                 guard.rotation.x = Math.PI / 2;
+                guard.castShadow = true;
                 group.add(guard);
 
-                // Curved Katana Blade built from 6 connected, angled segments
-                const segments = 6;
-                const segmentHeight = 0.22;
+                // Curved katana blade — more, smaller segments for a smooth arc,
+                // and each segment tapers narrower toward the tip like a real blade.
+                const segments = 12;
+                const segmentHeight = 0.11;
                 let currentY = -0.2;
                 let currentX = 0;
                 let currentRotation = 0;
 
                 for (let i = 0; i < segments; i++) {
-                    const segGeo = new THREE.BoxGeometry(0.02, segmentHeight, 0.07);
+                    const t = i / (segments - 1);
+                    const segW = 0.07 * (1 - t * 0.55); // taper toward the tip
+                    const segGeo = new THREE.BoxGeometry(0.016, segmentHeight, segW);
                     const seg = new THREE.Mesh(segGeo, bladeMat);
-                    
-                    // Position at top of previous segment
+
                     seg.position.set(
                         currentX + Math.sin(currentRotation) * (segmentHeight / 2),
                         currentY + Math.cos(currentRotation) * (segmentHeight / 2),
@@ -3518,37 +3566,81 @@ document.addEventListener('DOMContentLoaded', () => {
                     seg.castShadow = true;
                     group.add(seg);
 
-                    // Update cursor for next segment (gradually curve to the left/right)
                     currentX += Math.sin(currentRotation) * segmentHeight;
                     currentY += Math.cos(currentRotation) * segmentHeight;
-                    currentRotation += 0.06; // curvature step
+                    currentRotation += 0.035; // gentler, smoother curvature step
                 }
+
+                // Sharp tip (kissaki)
+                const tipGeo = new THREE.ConeGeometry(0.03, 0.07, 4);
+                const tip = new THREE.Mesh(tipGeo, bladeMat);
+                tip.position.set(currentX, currentY + 0.035 * Math.cos(currentRotation), 0);
+                tip.rotation.z = -currentRotation;
+                tip.castShadow = true;
+                group.add(tip);
             } else {
                 // --- 3D Traditional Medieval Sword ---
-                // Grip
-                const gripGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.35, 12);
+                // Grip with wrapped leather ridges
+                const gripGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.35, 16);
                 const grip = new THREE.Mesh(gripGeo, woodMat);
                 grip.position.y = -0.4;
+                grip.castShadow = true;
                 group.add(grip);
-                
+                const wrapMat = new THREE.MeshStandardMaterial({ color: 0x1c0f04, roughness: 0.85 });
+                for (let i = 0; i < 6; i++) {
+                    const ridge = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.006, 6, 12), wrapMat);
+                    ridge.rotation.x = Math.PI / 2;
+                    ridge.position.y = -0.55 + i * 0.055;
+                    group.add(ridge);
+                }
+
                 // Pommel
-                const pommelGeo = new THREE.SphereGeometry(0.06, 12, 12);
+                const pommelGeo = new THREE.SphereGeometry(0.065, 20, 16);
                 const pommel = new THREE.Mesh(pommelGeo, goldMat);
-                pommel.position.y = -0.58;
+                pommel.position.y = -0.6;
+                pommel.castShadow = true;
                 group.add(pommel);
-                
-                // Guard
-                const guardGeo = new THREE.BoxGeometry(0.44, 0.06, 0.08);
+
+                // Guard — beveled bar instead of a plain flat box
+                const guardGeo = createBeveledBox(0.46, 0.05, 0.09, 0.015);
                 const guard = new THREE.Mesh(guardGeo, steelMat);
-                guard.position.y = -0.2;
+                guard.position.y = -0.21;
+                guard.castShadow = true;
                 group.add(guard);
-                
-                // Blade
-                const bladeGeo = new THREE.CylinderGeometry(0.005, 0.07, 1.2, 4);
+
+                // Blade — real tapered silhouette drawn to a point, with beveled
+                // edges, instead of a 4-sided cone stretched into a diamond.
+                const bladeShape = new THREE.Shape();
+                bladeShape.moveTo(-0.065, 0);
+                bladeShape.lineTo(-0.05, 0.9);
+                bladeShape.quadraticCurveTo(-0.02, 1.08, 0, 1.15);
+                bladeShape.quadraticCurveTo(0.02, 1.08, 0.05, 0.9);
+                bladeShape.lineTo(0.065, 0);
+                bladeShape.closePath();
+                const bladeGeo = new THREE.ExtrudeGeometry(bladeShape, {
+                    depth: 0.018,
+                    bevelEnabled: true,
+                    bevelThickness: 0.006,
+                    bevelSize: 0.006,
+                    bevelSegments: 2,
+                    curveSegments: 10
+                });
+                bladeGeo.translate(0, -0.19, -0.009);
                 const blade = new THREE.Mesh(bladeGeo, bladeMat);
-                blade.scale.set(1.4, 1, 0.15); // sharp edge diamond scaling
-                blade.position.y = 0.4;
+                blade.castShadow = true;
                 group.add(blade);
+
+                // Fuller groove — thin glowing inset strip running down the blade
+                const fullerMat = new THREE.MeshStandardMaterial({
+                    color: elementColor,
+                    emissive: new THREE.Color(elementColor),
+                    emissiveIntensity: isGlowing ? 0.6 : 0.15,
+                    roughness: 0.3,
+                    metalness: 0.4
+                });
+                const fuller = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.82, 0.006), fullerMat);
+                fuller.position.set(0, 0.22, 0.006);
+                group.add(fuller);
             }
         }
         else if (prompt.includes('pocion') || prompt.includes('potion') || prompt.includes('frasco') || prompt.includes('botella')) {
@@ -3575,10 +3667,31 @@ document.addEventListener('DOMContentLoaded', () => {
             group.add(neck);
             
             // Cork
-            const corkGeo = new THREE.CylinderGeometry(0.13, 0.1, 0.12, 12);
+            const corkGeo = new THREE.CylinderGeometry(0.13, 0.1, 0.12, 16);
             const cork = new THREE.Mesh(corkGeo, woodMat);
             cork.position.y = 0.65;
             group.add(cork);
+
+            // Twine wrapped around the cork
+            const twineMat = new THREE.MeshStandardMaterial({ color: 0xd6c19a, roughness: 0.9 });
+            for (let i = 0; i < 2; i++) {
+                const twine = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.008, 6, 16), twineMat);
+                twine.rotation.x = Math.PI / 2;
+                twine.position.y = 0.6 + i * 0.05;
+                group.add(twine);
+            }
+
+            // Label ribbon tied around the neck, colored to match the element
+            const labelMat = new THREE.MeshStandardMaterial({ color: elementColor, roughness: 0.7 });
+            const label = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.025, 8, 24, Math.PI * 1.3), labelMat);
+            label.rotation.x = Math.PI / 2;
+            label.position.y = 0.4;
+            group.add(label);
+            const labelTagGeo = createBeveledBox(0.1, 0.13, 0.01, 0.01);
+            const labelTag = new THREE.Mesh(labelTagGeo, new THREE.MeshStandardMaterial({ color: 0xf5ecd8, roughness: 0.8 }));
+            labelTag.position.set(0, 0.36, 0.13);
+            labelTag.rotation.x = -0.15;
+            group.add(labelTag);
             
             // Liquid Core
             const liqMat = new THREE.MeshStandardMaterial({
@@ -3592,53 +3705,140 @@ document.addEventListener('DOMContentLoaded', () => {
             const liquid = new THREE.Mesh(liqGeo, liqMat);
             liquid.position.y = 0.1;
             group.add(liquid);
+
+            // Rising bubbles for a bit of life inside the liquid
+            const bubbleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+            [[0.1, 0.0, 0.05, 0.02], [-0.12, 0.2, -0.08, 0.015], [0.05, 0.35, 0.1, 0.018]].forEach(([bx, by, bz, br]) => {
+                const bubble = new THREE.Mesh(new THREE.SphereGeometry(br, 8, 8), bubbleMat);
+                bubble.position.set(bx, by + 0.1, bz);
+                group.add(bubble);
+            });
         }
         else if (prompt.includes('escudo') || prompt.includes('shield')) {
-            // --- 3D Shield ---
-            // Shield Body
-            const shieldGeo = new THREE.BoxGeometry(0.8, 1.0, 0.06);
+            // --- 3D Shield — real heater-shield silhouette instead of a flat rectangle ---
+            const shieldShape = new THREE.Shape();
+            shieldShape.moveTo(-0.42, 0.55);
+            shieldShape.quadraticCurveTo(-0.44, 0.62, -0.30, 0.62);
+            shieldShape.lineTo(0.30, 0.62);
+            shieldShape.quadraticCurveTo(0.44, 0.62, 0.42, 0.55);
+            shieldShape.lineTo(0.40, 0.05);
+            shieldShape.quadraticCurveTo(0.40, -0.45, 0, -0.72); // tapers to a point
+            shieldShape.quadraticCurveTo(-0.40, -0.45, -0.40, 0.05);
+            shieldShape.lineTo(-0.42, 0.55);
+
+            const shieldGeo = new THREE.ExtrudeGeometry(shieldShape, {
+                depth: 0.05,
+                bevelEnabled: true,
+                bevelThickness: 0.022,
+                bevelSize: 0.018,
+                bevelSegments: 3,
+                curveSegments: 14
+            });
+            shieldGeo.translate(0, 0, -0.025);
             const shield = new THREE.Mesh(shieldGeo, materials.customMaterial);
-            shield.position.y = 0.1;
+            shield.castShadow = true;
             group.add(shield);
-            
-            // Metal rim
-            const rimGeo = new THREE.BoxGeometry(0.86, 1.06, 0.08);
+
+            // Metal rim tracing the same silhouette, slightly larger, sitting behind
+            const rimGeo = new THREE.ExtrudeGeometry(shieldShape, {
+                depth: 0.025, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.025, bevelSegments: 2, curveSegments: 14
+            });
+            rimGeo.scale(1.07, 1.05, 1);
+            rimGeo.translate(0, 0, -0.075);
             const rim = new THREE.Mesh(rimGeo, steelMat);
-            rim.position.set(0, 0.1, -0.01);
             group.add(rim);
+
+            // Central raised boss
+            const bossGeo = new THREE.SphereGeometry(0.12, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+            const boss = new THREE.Mesh(bossGeo, steelMat);
+            boss.rotation.x = -Math.PI / 2;
+            boss.position.set(0, 0.03, 0.05);
+            boss.castShadow = true;
+            group.add(boss);
+
+            // Rivets around the rim
+            const rivetGeo = new THREE.SphereGeometry(0.022, 8, 8);
+            [[-0.32, 0.4], [0.32, 0.4], [-0.34, -0.1], [0.34, -0.1], [0, -0.55]].forEach(([rx, ry]) => {
+                const rivet = new THREE.Mesh(rivetGeo, goldMat);
+                rivet.position.set(rx, ry, 0.03);
+                group.add(rivet);
+            });
         }
         else if (prompt.includes('cofre') || prompt.includes('chest') || prompt.includes('caja')) {
-            // --- 3D Chest ---
-            // Base
-            const baseGeo = new THREE.BoxGeometry(1.0, 0.5, 0.75);
+            // --- 3D Chest — beveled panels + plank seams + corner braces so it
+            // reads as a crafted object instead of two stacked raw boxes. ---
+            const baseGeo = createBeveledBox(1.0, 0.5, 0.75, 0.025);
             const baseMesh = new THREE.Mesh(baseGeo, materials.customMaterial);
             baseMesh.position.y = -0.15;
+            baseMesh.castShadow = true;
             group.add(baseMesh);
             
             // Lid
-            const lidGeo = new THREE.CylinderGeometry(0.375, 0.375, 1.0, 24, 1, false, 0, Math.PI);
+            const lidGeo = new THREE.CylinderGeometry(0.375, 0.375, 1.0, 32, 1, false, 0, Math.PI);
             const lidMesh = new THREE.Mesh(lidGeo, materials.customMaterial);
             lidMesh.rotation.z = Math.PI / 2;
             lidMesh.position.y = 0.1;
+            lidMesh.castShadow = true;
             group.add(lidMesh);
+
+            // Wood plank seams on the front face
+            const seamMat = new THREE.MeshStandardMaterial({ color: 0x2b1608, roughness: 0.9 });
+            [-0.3, 0, 0.3].forEach(sx => {
+                const seam = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.48, 0.02), seamMat);
+                seam.position.set(sx, -0.15, 0.375);
+                group.add(seam);
+            });
+
+            // Metal corner braces on the base
+            [[-0.5, 0.38], [0.5, 0.38], [-0.5, -0.38], [0.5, -0.38]].forEach(([bx, bz]) => {
+                const brace = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.06), steelMat);
+                brace.position.set(bx, -0.15, bz);
+                brace.castShadow = true;
+                group.add(brace);
+            });
             
-            // Lock
-            const lockGeo = new THREE.BoxGeometry(0.12, 0.12, 0.05);
-            const lock = new THREE.Mesh(lockGeo, goldMat);
-            lock.position.set(0, 0.1, 0.38);
-            group.add(lock);
+            // Lock plate + shackle + keyhole
+            const lockPlate = new THREE.Mesh(createBeveledBox(0.16, 0.18, 0.04, 0.014), goldMat);
+            lockPlate.position.set(0, 0.08, 0.385);
+            group.add(lockPlate);
+            const shackle = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.014, 8, 16, Math.PI), steelMat);
+            shackle.position.set(0, 0.17, 0.385);
+            shackle.rotation.z = Math.PI;
+            group.add(shackle);
+            const keyhole = new THREE.Mesh(new THREE.CircleGeometry(0.02, 10), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+            keyhole.position.set(0, 0.06, 0.408);
+            group.add(keyhole);
         }
         else if (prompt.includes('casco') || prompt.includes('helmet') || prompt.includes('yelmo')) {
-            // --- 3D Helmet ---
-            const domeGeo = new THREE.SphereGeometry(0.48, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+            // --- 3D Helmet — curved visor + rim + crest instead of a dome with a floating flat box ---
+            const domeGeo = new THREE.SphereGeometry(0.48, 32, 20, 0, Math.PI * 2, 0, Math.PI / 2);
             const dome = new THREE.Mesh(domeGeo, steelMat);
             dome.position.y = 0.15;
+            dome.castShadow = true;
             group.add(dome);
 
-            const visGeo = new THREE.BoxGeometry(0.55, 0.18, 0.4);
+            // Rim band around the base of the dome
+            const rim = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.025, 10, 32), steelMat);
+            rim.rotation.x = Math.PI / 2;
+            rim.position.y = 0.15;
+            group.add(rim);
+
+            // Curved visor — a real cylindrical band instead of a flat box
+            const visGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 16, 1, true, -Math.PI * 0.32, Math.PI * 0.64);
             const visor = new THREE.Mesh(visGeo, bladeMat);
-            visor.position.set(0, 0.22, 0.28);
+            visor.position.set(0, 0.1, 0.02);
+            visor.castShadow = true;
             group.add(visor);
+
+            // Eye slit
+            const slit = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.05), new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.9 }));
+            slit.position.set(0, 0.14, 0.31);
+            group.add(slit);
+
+            // Crest / plume socket
+            const crest = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.42), new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.6 }));
+            crest.position.set(0, 0.62, 0);
+            group.add(crest);
         }
         else if (prompt.includes('anillo') || prompt.includes('ring')) {
             // --- 3D Ring ---
@@ -3654,54 +3854,118 @@ document.addEventListener('DOMContentLoaded', () => {
             group.add(gemMesh);
         }
         else if (prompt.includes('baston') || prompt.includes('staff') || prompt.includes('varita') || prompt.includes('wand')) {
-            // --- 3D Staff ---
-            const shaftGeo = new THREE.CylinderGeometry(0.025, 0.025, 1.4, 12);
+            // --- 3D Staff — crystal held by claw prongs instead of a floating sphere ---
+            const shaftGeo = new THREE.CylinderGeometry(0.025, 0.03, 1.4, 16);
             const shaft = new THREE.Mesh(shaftGeo, woodMat);
             shaft.position.y = 0.1;
+            shaft.castShadow = true;
             group.add(shaft);
 
-            const headGeo = new THREE.SphereGeometry(0.15, 16, 16);
+            // Wrapped grip band
+            const wrapMat = new THREE.MeshStandardMaterial({ color: 0x1c0f04, roughness: 0.85 });
+            for (let i = 0; i < 5; i++) {
+                const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.006, 6, 12), wrapMat);
+                wrap.rotation.x = Math.PI / 2;
+                wrap.position.y = -0.35 + i * 0.06;
+                group.add(wrap);
+            }
+
+            // Crystal (faceted, glowing with the element color)
+            const headGeo = new THREE.OctahedronGeometry(0.15, 0);
             const head = new THREE.Mesh(headGeo, bladeMat);
-            head.position.y = 0.85;
+            head.position.y = 0.88;
+            head.castShadow = true;
             group.add(head);
+
+            // Claw prongs gripping the crystal from below
+            const clawMat = goldMat;
+            for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2;
+                const claw = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.006, 0.22, 6), clawMat);
+                claw.position.set(Math.cos(angle) * 0.09, 0.72, Math.sin(angle) * 0.09);
+                claw.rotation.z = Math.cos(angle) * 0.5;
+                claw.rotation.x = -Math.sin(angle) * 0.5;
+                group.add(claw);
+            }
+            const collar = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.018, 8, 16), goldMat);
+            collar.rotation.x = Math.PI / 2;
+            collar.position.y = 0.7;
+            group.add(collar);
         }
         else if (prompt.includes('llave') || prompt.includes('key')) {
-            // --- 3D Key ---
-            const loopGeo = new THREE.TorusGeometry(0.16, 0.04, 8, 24);
+            // --- 3D Key — ornate scrollwork bit instead of a plain flat box ---
+            const loopGeo = new THREE.TorusGeometry(0.16, 0.045, 10, 28);
             const loop = new THREE.Mesh(loopGeo, goldMat);
             loop.position.y = -0.4;
+            loop.castShadow = true;
             group.add(loop);
 
-            const shaftGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 12);
+            // Inner scrollwork detail inside the bow (loop)
+            const scrollGeo = new THREE.TorusGeometry(0.07, 0.014, 8, 16);
+            const scroll = new THREE.Mesh(scrollGeo, goldMat);
+            scroll.position.y = -0.4;
+            group.add(scroll);
+
+            const shaftGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 16);
             const shaft = new THREE.Mesh(shaftGeo, goldMat);
             shaft.position.y = 0.05;
+            shaft.castShadow = true;
             group.add(shaft);
 
-            const bitGeo = new THREE.BoxGeometry(0.15, 0.22, 0.04);
+            // Bit — a small stepped silhouette instead of a flat rectangle
+            const bitShape = new THREE.Shape();
+            bitShape.moveTo(0, -0.11);
+            bitShape.lineTo(0.16, -0.11);
+            bitShape.lineTo(0.16, -0.02);
+            bitShape.lineTo(0.1, -0.02);
+            bitShape.lineTo(0.1, 0.05);
+            bitShape.lineTo(0.16, 0.05);
+            bitShape.lineTo(0.16, 0.11);
+            bitShape.lineTo(0, 0.11);
+            bitShape.closePath();
+            const bitGeo = new THREE.ExtrudeGeometry(bitShape, {
+                depth: 0.035, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2, curveSegments: 4
+            });
+            bitGeo.translate(-0.13, 0.35, -0.0175);
             const bit = new THREE.Mesh(bitGeo, goldMat);
-            bit.position.set(-0.1, 0.35, 0);
+            bit.castShadow = true;
             group.add(bit);
         }
         else if (prompt.includes('pergamino') || prompt.includes('scroll') || prompt.includes('libro') || prompt.includes('book')) {
-            // --- 3D Scroll ---
-            const sheetGeo = new THREE.BoxGeometry(0.8, 0.02, 0.55);
+            // --- 3D Scroll — gently curled paper instead of a perfectly flat sheet ---
+            const sheetGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.8, 24, 4, true, -0.3, 0.6);
             const sheet = new THREE.Mesh(sheetGeo, materials.customMaterial);
+            sheet.rotation.z = Math.PI / 2;
             sheet.position.y = 0.1;
+            sheet.castShadow = true;
             group.add(sheet);
 
             const rollGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.6, 16);
             const rollL = new THREE.Mesh(rollGeo, woodMat);
             rollL.rotation.x = Math.PI / 2;
             rollL.position.set(-0.43, 0.1, 0);
+            rollL.castShadow = true;
             const rollR = new THREE.Mesh(rollGeo, woodMat);
             rollR.rotation.x = Math.PI / 2;
             rollR.position.set(0.43, 0.1, 0);
+            rollR.castShadow = true;
             group.add(rollL);
             group.add(rollR);
+
+            // Wax seal ribbon holding the scroll shut
+            const ribbonMat = new THREE.MeshStandardMaterial({ color: elementColor, roughness: 0.6 });
+            const ribbon = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.015, 8, 6, Math.PI), ribbonMat);
+            ribbon.rotation.y = Math.PI / 2;
+            ribbon.position.set(0, 0.1, 0);
+            group.add(ribbon);
+            const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 16), ribbonMat);
+            seal.rotation.x = Math.PI / 2;
+            seal.position.set(0, 0.1, 0.29);
+            group.add(seal);
         }
         else if (prompt.includes('dog') || prompt.includes('perro') || prompt.includes('cat') || prompt.includes('gato') || prompt.includes('wolf') || prompt.includes('lobo') || prompt.includes('chicken') || prompt.includes('gallina') || prompt.includes('gallo') || prompt.includes('pollo')) {
             const isChicken = prompt.includes('chicken') || prompt.includes('gallina') || prompt.includes('gallo') || prompt.includes('pollo');
-            const animalColorHex = document.querySelector('.swatch.selected')?.getAttribute('data-color') || baseColor;
+            const animalColorHex = document.querySelector('.swatch.selected')?.getAttribute('data-color') || '#c026d3';
             const animalMat = new THREE.MeshStandardMaterial({
                 color: new THREE.Color(animalColorHex),
                 roughness: 0.75,
@@ -3725,26 +3989,83 @@ document.addEventListener('DOMContentLoaded', () => {
                 beak.rotation.x = -Math.PI / 2.2;
                 group.add(beak);
 
-                // Tiny legs
+                // Red comb on top of the head
+                const combMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.6 });
+                for (let i = 0; i < 3; i++) {
+                    const comb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), combMat);
+                    comb.position.set(0, 0.42 + (i === 1 ? 0.02 : 0), -0.32 + i * 0.06);
+                    comb.scale.set(0.7, 1, 0.6);
+                    group.add(comb);
+                }
+                // Wattle under the beak
+                const wattle = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), combMat);
+                wattle.position.set(0, 0.2, -0.4);
+                wattle.scale.set(0.7, 1.2, 0.7);
+                group.add(wattle);
+
+                // Eyes
+                const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4 });
+                [-0.1, 0.1].forEach(ex => {
+                    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), eyeMat);
+                    eye.position.set(ex, 0.32, -0.38);
+                    group.add(eye);
+                });
+
+                // Wings (flattened, pressed against the sides)
+                const wingMat = new THREE.MeshStandardMaterial({ color: adjustBrightness(animalColorHex, -15), roughness: 0.8 });
+                [-1, 1].forEach(side => {
+                    const wing = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), wingMat);
+                    wing.scale.set(0.35, 0.85, 0.6);
+                    wing.position.set(side * 0.32, 0.18, 0.02);
+                    wing.rotation.z = side * 0.2;
+                    group.add(wing);
+                });
+
+                // Tail feathers, fanned at the back
+                const tailMat = new THREE.MeshStandardMaterial({ color: adjustBrightness(animalColorHex, -10), roughness: 0.7 });
+                for (let i = -1; i <= 1; i++) {
+                    const feather = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.32, 6), tailMat);
+                    feather.position.set(i * 0.08, 0.42, 0.38);
+                    feather.rotation.x = Math.PI * 0.62 + i * 0.05;
+                    feather.rotation.z = i * 0.15;
+                    group.add(feather);
+                }
+
+                // Tiny legs with feet
                 const legGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.18, 8);
                 const legMat = new THREE.MeshStandardMaterial({ color: 0xf97316 });
-                const legL = new THREE.Mesh(legGeo, legMat);
-                const legR = new THREE.Mesh(legGeo, legMat);
-                legL.position.set(-0.12, -0.15, 0);
-                legR.position.set(0.12, -0.15, 0);
-                group.add(legL);
-                group.add(legR);
+                [-0.12, 0.12].forEach(lx => {
+                    const leg = new THREE.Mesh(legGeo, legMat);
+                    leg.position.set(lx, -0.15, 0);
+                    group.add(leg);
+                    for (let t = -1; t <= 1; t++) {
+                        const toe = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.08, 6), legMat);
+                        toe.position.set(lx + t * 0.03, -0.24, -0.03 + Math.abs(t) * 0.02);
+                        toe.rotation.x = Math.PI / 2.3;
+                        toe.rotation.z = t * 0.4;
+                        group.add(toe);
+                    }
+                });
             } else {
                 // --- Quadrupeds: Dog, Cat, Wolf ---
                 const isCat = prompt.includes('cat') || prompt.includes('gato');
-                
-                // Horizontal Torso
-                const bodyGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.72, 16);
+                const isWolf = prompt.includes('wolf') || prompt.includes('lobo');
+
+                // Torso — cylinder capped with hemispheres so it reads as a
+                // rounded body instead of a tube with flat front/back ends.
+                const bodyGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.58, 16, 1, true);
                 const bodyMesh = new THREE.Mesh(bodyGeo, animalMat);
                 bodyMesh.rotation.x = Math.PI / 2;
                 bodyMesh.position.y = 0.25;
                 bodyMesh.castShadow = true;
                 group.add(bodyMesh);
+                [[-0.29, 1], [0.29, -1]].forEach(([zOff]) => {
+                    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), animalMat);
+                    cap.rotation.x = zOff > 0 ? Math.PI / 2 : -Math.PI / 2;
+                    cap.position.set(0, 0.25, zOff);
+                    cap.castShadow = true;
+                    group.add(cap);
+                });
 
                 // Head
                 const headGeo = new THREE.SphereGeometry(0.18, 24, 24);
@@ -3760,10 +4081,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 snout.position.set(0, 0.5, -0.48);
                 group.add(snout);
 
+                // Nose + eyes
+                const nose = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+                nose.position.set(0, 0.51, -0.55);
+                group.add(nose);
+                const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4 });
+                [-0.09, 0.09].forEach(ex => {
+                    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), eyeMat);
+                    eye.position.set(ex, 0.58, -0.44);
+                    group.add(eye);
+                });
+
                 // Ears
                 const earGeo = isCat 
                     ? new THREE.ConeGeometry(0.06, 0.12, 4)
-                    : new THREE.BoxGeometry(0.06, 0.18, 0.08);
+                    : new THREE.BoxGeometry(0.06, isWolf ? 0.24 : 0.18, 0.08);
                 const earMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.8 });
                 const earL = new THREE.Mesh(earGeo, earMat);
                 const earR = new THREE.Mesh(earGeo, earMat);
@@ -3772,26 +4104,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     earL.position.set(-0.12, 0.7, -0.32);
                     earR.position.set(0.12, 0.7, -0.32);
                 } else {
-                    earL.position.set(-0.19, 0.55, -0.32);
-                    earR.position.set(0.19, 0.55, -0.32);
+                    earL.position.set(-0.19, isWolf ? 0.62 : 0.55, -0.32);
+                    earR.position.set(0.19, isWolf ? 0.62 : 0.55, -0.32);
                 }
                 group.add(earL);
                 group.add(earR);
 
-                // 4 legs
-                const legGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.38, 8);
-                const legL1 = new THREE.Mesh(legGeo, animalMat);
-                const legR1 = new THREE.Mesh(legGeo, animalMat);
-                const legL2 = new THREE.Mesh(legGeo, animalMat);
-                const legR2 = new THREE.Mesh(legGeo, animalMat);
-                
-                legL1.position.set(-0.18, 0.05, -0.22);
-                legR1.position.set(0.18, 0.05, -0.22);
-                legL2.position.set(-0.18, 0.05, 0.22);
-                legR2.position.set(0.18, 0.05, 0.22);
-                
-                group.add(legL1); group.add(legR1);
-                group.add(legL2); group.add(legR2);
+                // 4 legs, each with a small paw
+                const legGeo = new THREE.CylinderGeometry(0.04, 0.036, 0.38, 8);
+                const pawMat = animalMat;
+                [[-0.18, -0.22], [0.18, -0.22], [-0.18, 0.22], [0.18, 0.22]].forEach(([lx, lz]) => {
+                    const leg = new THREE.Mesh(legGeo, animalMat);
+                    leg.position.set(lx, 0.05, lz);
+                    leg.castShadow = true;
+                    group.add(leg);
+                    const paw = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 10), pawMat);
+                    paw.scale.set(1, 0.6, 1.1);
+                    paw.position.set(lx, -0.14, lz + 0.02);
+                    group.add(paw);
+                });
+
+                // Tail — tapered, curved up at the tip; bushier for the wolf
+                const tailSegs = isWolf ? 5 : 4;
+                let tx = 0, ty = 0.32, tz = 0.34, trot = -0.5;
+                for (let i = 0; i < tailSegs; i++) {
+                    const segLen = 0.14;
+                    const segR = (isWolf ? 0.045 : 0.03) * (1 - i / tailSegs * 0.5);
+                    const seg = new THREE.Mesh(new THREE.CylinderGeometry(segR, segR * 0.85, segLen, 8), animalMat);
+                    seg.position.set(tx + Math.sin(trot) * segLen * 0.5, ty + Math.cos(trot) * segLen * 0.5 - 0.1, tz);
+                    seg.rotation.x = trot;
+                    seg.castShadow = true;
+                    group.add(seg);
+                    tx += Math.sin(trot) * segLen;
+                    ty += Math.cos(trot) * segLen - 0.02;
+                    tz += 0.02;
+                    trot -= isCat ? 0.15 : 0.3;
+                }
             }
         }
         else if (prompt.includes('personaje') || prompt.includes('character') || prompt.includes('npc') || prompt.includes('humano') || prompt.includes('guerrero') || prompt.includes('warrior') || prompt.includes('mago') || prompt.includes('mage') || prompt.includes('pícaro') || prompt.includes('rogue') || prompt.includes('sanador') || prompt.includes('healer') || prompt.includes('goblin') || prompt.includes('esqueleto') || prompt.includes('skeleton') || prompt.includes('orco') || prompt.includes('orc') || prompt.includes('ghost') || prompt.includes('fantasma') || prompt.includes('slime') || prompt.includes('monstruo') || prompt.includes('monster') || prompt.includes('golem') || prompt.includes('boss') || prompt.includes('princesa') || prompt.includes('princess') || prompt.includes('vago') || prompt.includes('beggar') || prompt.includes('noble')) {

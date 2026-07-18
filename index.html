@@ -17,6 +17,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
     <!-- Realistic Character System -->
     <script src="realistic-character.js"></script>
+    <!-- HuggingFace AI Generator -->
+    <script src="hf-generator.js"></script>
     <!-- Style Sheet -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -115,6 +117,19 @@
                                 <option value="transparent" selected>Transparente</option>
                                 <option value="solid">Sólido oscuro</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Motor de Generación</label>
+                        <div style="display: flex; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 8px; border: 1px solid var(--border-color); gap: 4px;">
+                            <button type="button" id="engine-procedural" class="btn btn-secondary btn-sm" style="flex: 1; padding: 6px; font-size: 0.72rem; border-radius: 6px;" title="Generación instantánea local">⚡ Procedural Rápido</button>
+                            <button type="button" id="engine-advanced" class="btn btn-accent btn-sm active" style="flex: 1; padding: 6px; font-size: 0.72rem; border-radius: 6px;" title="Stable Diffusion XL en la nube">🧠 IA Avanzada (HF)</button>
+                        </div>
+                        <!-- HF Status indicator -->
+                        <div id="hf-status-bar" style="margin-top: 6px; padding: 6px 10px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.2); border-radius: 6px; font-size: 0.7rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                            <span id="hf-status-dot" style="width: 7px; height: 7px; border-radius: 50%; background: #22c55e; display: inline-block; flex-shrink: 0;"></span>
+                            <span id="hf-status-text">10 tokens HuggingFace activos · FLUX.1-schnell + SDXL</span>
                         </div>
                     </div>
 

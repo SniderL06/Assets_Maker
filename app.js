@@ -1169,23 +1169,120 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- AI Generator Simulation Engine ---
-    function triggerAIGenerate() {
+    // Engine state — 'advanced' uses HuggingFace API; 'procedural' uses local canvas art
+    let selectedEngine = 'advanced'; // default to HF
+
+    function initEngineButtons() {
+        const btnProcedural = document.getElementById('engine-procedural');
+        const btnAdvanced   = document.getElementById('engine-advanced');
+        if (!btnProcedural || !btnAdvanced) return;
+
+        function setEngine(mode) {
+            selectedEngine = mode;
+            btnProcedural.classList.toggle('active', mode === 'procedural');
+            btnAdvanced.classList.toggle('active', mode === 'advanced');
+            const statusBar = document.getElementById('hf-status-bar');
+            if (statusBar) statusBar.style.display = mode === 'advanced' ? 'flex' : 'none';
+        }
+
+        btnProcedural.addEventListener('click', () => setEngine('procedural'));
+        btnAdvanced.addEventListener('click',   () => setEngine('advanced'));
+
+        // Default: advanced selected
+        setEngine('advanced');
+    }
+
+    // Call during init
+    initEngineButtons();
+
+    async function triggerAIGenerate() {
         const prompt = promptInput.value.trim();
         if (!prompt) {
             alert('Por favor, escribe lo que quieres crear en la caja de prompt.');
             return;
         }
 
-        showLoader('Conectando con el motor AI...', 'Inicializando modelo latente');
-        
+        if (selectedEngine === 'advanced' && window.HFGenerator) {
+            // ---- HuggingFace Real Image Generation ----
+            const activeStyleOpt = document.querySelector('.style-option.active');
+            const style = activeStyleOpt ? activeStyleOpt.getAttribute('data-style') : 'realistic';
+            const negativePrompt = document.getElementById('negative-prompt')?.value?.trim() || '';
+            const guidanceScale  = parseFloat(document.getElementById('ai-guidance')?.value || '7.5');
+            const resolution     = parseInt(document.getElementById('res-select')?.value || '512');
+
+            showLoader('🧠 IA Avanzada — Generando con HuggingFace...', 'Conectando con modelos de difusión...');
+            updateLoaderProgress(5, 'Enviando prompt a FLUX.1-schnell...');
+
+            // Update status dot
+            const statusDot  = document.getElementById('hf-status-dot');
+            const statusText = document.getElementById('hf-status-text');
+            if (statusDot)  { statusDot.style.background = '#f59e0b'; }
+            if (statusText) { statusText.textContent = 'Generando imagen...'; }
+
+            try {
+                const result = await HFGenerator.generate({
+                    prompt,
+                    style,
+                    negativePrompt,
+                    width: Math.max(resolution, 512),
+                    height: Math.max(resolution, 512),
+                    guidanceScale,
+                    onProgress: (pct, msg) => updateLoaderProgress(pct, msg)
+                });
+
+                // Load the generated image onto the canvas
+                const img = new Image();
+                img.onload = () => {
+                    canvas.dataset.hasAsset = 'true';
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    updateThreeTexture();
+                    hideLoader();
+                    saveHistoryState();
+
+                    // Also auto-update 3D view
+                    if (style === 'realistic' || style === 'vector' || style === 'cartoon') {
+                        threeMeshSelect.value = 'mesh_3d';
+                        updateThreeMesh('mesh_3d');
+                    }
+
+                    if (statusDot)  { statusDot.style.background = '#22c55e'; }
+                    if (statusText) { statusText.textContent = `✓ Modelo: ${result.modelUsed}`; }
+
+                    showNotification(`✨ Imagen generada por ${result.modelUsed}`);
+                };
+                img.onerror = () => {
+                    hideLoader();
+                    showNotification('⚠️ Error cargando imagen. Usando generación procedural.');
+                    fallbackToProcedural(prompt);
+                };
+                img.src = result.dataUrl;
+
+            } catch (err) {
+                console.error('[HFGenerator] Generation failed:', err);
+                if (statusDot)  { statusDot.style.background = '#ef4444'; }
+                if (statusText) { statusText.textContent = `Error: ${err.message.slice(0, 60)}`; }
+                hideLoader();
+                showNotification(`⚠️ HF falló: ${err.message.slice(0, 80)}. Usando arte procedural.`);
+                fallbackToProcedural(prompt);
+            }
+
+        } else {
+            // ---- Procedural (local) generation ----
+            fallbackToProcedural(prompt);
+        }
+    }
+
+    function fallbackToProcedural(prompt) {
+        showLoader('⚡ Generando asset procedural...', 'Calculando paleta de colores...');
         let progress = 0;
         const interval = setInterval(() => {
             progress += Math.floor(Math.random() * 8) + 4;
             if (progress >= 100) {
                 progress = 100;
                 clearInterval(interval);
-                
-                // Finalize generation
                 generateProceduralAsset(prompt);
                 hideLoader();
                 saveHistoryState();
@@ -3515,13 +3612,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         else if (prompt.includes('dog') || prompt.includes('perro') || prompt.includes('cat') || prompt.includes('gato') || prompt.includes('wolf') || prompt.includes('lobo') || prompt.includes('chicken') || prompt.includes('gallina') || prompt.includes('gallo') || prompt.includes('pollo')) {
             const isChicken = prompt.includes('chicken') || prompt.includes('gallina') || prompt.includes('gallo') || prompt.includes('pollo');
-            
+            const animalColorHex = document.querySelector('.swatch.selected')?.getAttribute('data-color') || baseColor;
+            const animalMat = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(animalColorHex),
+                roughness: 0.75,
+                metalness: 0.05
+            });
+
             if (isChicken) {
                 // --- Plump 3D Chicken ---
                 const bodyGeo = new THREE.SphereGeometry(0.38, 24, 24);
-                const bodyMesh = new THREE.Mesh(bodyGeo, materials.customMaterial);
+                const bodyMesh = new THREE.Mesh(bodyGeo, animalMat);
                 bodyMesh.position.y = 0.2;
-                bodyMesh.scale.set(1, 1.1, 1.15); // egg shape
+                bodyMesh.scale.set(1, 1.1, 1.15);
                 bodyMesh.castShadow = true;
                 group.add(bodyMesh);
 
@@ -3548,15 +3651,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Horizontal Torso
                 const bodyGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.72, 16);
-                const bodyMesh = new THREE.Mesh(bodyGeo, materials.customMaterial);
-                bodyMesh.rotation.x = Math.PI / 2; // lie down horizontal
+                const bodyMesh = new THREE.Mesh(bodyGeo, animalMat);
+                bodyMesh.rotation.x = Math.PI / 2;
                 bodyMesh.position.y = 0.25;
                 bodyMesh.castShadow = true;
                 group.add(bodyMesh);
 
                 // Head
                 const headGeo = new THREE.SphereGeometry(0.18, 24, 24);
-                const head = new THREE.Mesh(headGeo, materials.customMaterial);
+                const head = new THREE.Mesh(headGeo, animalMat);
                 head.position.set(0, 0.54, -0.36);
                 head.castShadow = true;
                 group.add(head);
@@ -3570,8 +3673,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Ears
                 const earGeo = isCat 
-                    ? new THREE.ConeGeometry(0.06, 0.12, 4) // Pointy Cat ears
-                    : new THREE.BoxGeometry(0.06, 0.18, 0.08); // Drooping Dog/Wolf ears
+                    ? new THREE.ConeGeometry(0.06, 0.12, 4)
+                    : new THREE.BoxGeometry(0.06, 0.18, 0.08);
                 const earMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.8 });
                 const earL = new THREE.Mesh(earGeo, earMat);
                 const earR = new THREE.Mesh(earGeo, earMat);
@@ -3588,10 +3691,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 4 legs
                 const legGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.38, 8);
-                const legL1 = new THREE.Mesh(legGeo, materials.customMaterial);
-                const legR1 = new THREE.Mesh(legGeo, materials.customMaterial);
-                const legL2 = new THREE.Mesh(legGeo, materials.customMaterial);
-                const legR2 = new THREE.Mesh(legGeo, materials.customMaterial);
+                const legL1 = new THREE.Mesh(legGeo, animalMat);
+                const legR1 = new THREE.Mesh(legGeo, animalMat);
+                const legL2 = new THREE.Mesh(legGeo, animalMat);
+                const legR2 = new THREE.Mesh(legGeo, animalMat);
                 
                 legL1.position.set(-0.18, 0.05, -0.22);
                 legR1.position.set(0.18, 0.05, -0.22);
@@ -4279,88 +4382,252 @@ document.addEventListener('DOMContentLoaded', () => {
         // Drop shadow
         drawDropShadow(cx, cy + legH + headR * 0.6, bodyW * 0.9, bodyW * 0.2, 0.4);
 
-        // — LEGS —
+        // — LEGS — with knee cap detail
         const legW = bodyW * 0.38;
-        ctx.fillStyle = legCol;
         // Left leg
+        const leftLegGrad = ctx.createLinearGradient(cx - legW - 2*S, 0, cx, 0);
+        leftLegGrad.addColorStop(0, darkenColor(legCol, 25));
+        leftLegGrad.addColorStop(0.4, lightenColor(legCol, 15));
+        leftLegGrad.addColorStop(1, darkenColor(legCol, 10));
+        ctx.fillStyle = leftLegGrad;
         ctx.beginPath();
-        ctx.roundRect(cx - legW - 2 * S, torsoBot - 4 * S, legW, legH, pixelated ? 0 : 4 * S);
+        ctx.roundRect(cx - legW - 2*S, torsoBot - 4*S, legW, legH, pixelated ? 0 : [3*S, 3*S, 5*S, 5*S]);
         ctx.fill();
         // Right leg
+        const rightLegGrad = ctx.createLinearGradient(cx, 0, cx + legW + 2*S, 0);
+        rightLegGrad.addColorStop(0, lightenColor(legCol, 15));
+        rightLegGrad.addColorStop(0.6, darkenColor(legCol, 10));
+        rightLegGrad.addColorStop(1, darkenColor(legCol, 30));
+        ctx.fillStyle = rightLegGrad;
         ctx.beginPath();
-        ctx.roundRect(cx + 2 * S, torsoBot - 4 * S, legW, legH, pixelated ? 0 : 4 * S);
+        ctx.roundRect(cx + 2*S, torsoBot - 4*S, legW, legH, pixelated ? 0 : [3*S, 3*S, 5*S, 5*S]);
         ctx.fill();
 
-        // Leg highlight
-        const legHL = ctx.createLinearGradient(cx - legW - 2*S, torsoBot, cx, torsoBot);
-        legHL.addColorStop(0, 'rgba(255,255,255,0.12)');
-        legHL.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = legHL;
-        ctx.beginPath();
-        ctx.roundRect(cx - legW - 2*S, torsoBot - 4*S, legW, legH, pixelated ? 0 : 4*S);
-        ctx.fill();
+        // Knee caps
+        if (!pixelated) {
+            const kneeY = torsoBot + legH * 0.42;
+            ctx.fillStyle = lightenColor(legCol, 8);
+            ctx.beginPath(); ctx.ellipse(cx - legW/2 - 2*S, kneeY, legW*0.35, legW*0.28, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(cx + legW/2 + 2*S, kneeY, legW*0.35, legW*0.28, 0, 0, Math.PI*2); ctx.fill();
+            // Knee highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.12)';
+            ctx.beginPath(); ctx.ellipse(cx - legW/2 - 2*S - legW*0.08, kneeY - legW*0.1, legW*0.15, legW*0.12, -0.3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(cx + legW/2 + 2*S - legW*0.08, kneeY - legW*0.1, legW*0.15, legW*0.12, -0.3, 0, Math.PI*2); ctx.fill();
+        }
 
-        // — TORSO —
+        // Shoe/boot base
+        ctx.fillStyle = darkenColor(legCol, 50);
+        ctx.beginPath(); ctx.roundRect(cx - legW - 4*S, torsoBot + legH - 4*S, legW + 3*S, 6*S, pixelated ? 0 : [0, 0, 4*S, 4*S]); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(cx + 1*S, torsoBot + legH - 4*S, legW + 3*S, 6*S, pixelated ? 0 : [0, 0, 4*S, 4*S]); ctx.fill();
+
+        // — TORSO — with muscle definition
         const torsoGrad = ctx.createLinearGradient(cx - bodyW/2, torsoTop, cx + bodyW/2, torsoBot);
-        torsoGrad.addColorStop(0,   lightenColor(bodyCol, 35));
-        torsoGrad.addColorStop(0.5, bodyCol);
-        torsoGrad.addColorStop(1,   darkenColor(bodyCol, 35));
+        torsoGrad.addColorStop(0,   lightenColor(bodyCol, 40));
+        torsoGrad.addColorStop(0.35, lightenColor(bodyCol, 10));
+        torsoGrad.addColorStop(0.7, bodyCol);
+        torsoGrad.addColorStop(1,   darkenColor(bodyCol, 40));
         ctx.fillStyle = torsoGrad;
         ctx.beginPath();
         ctx.roundRect(cx - bodyW/2, torsoTop, bodyW, bodyH, pixelated ? 0 : [8*S, 8*S, 4*S, 4*S]);
         ctx.fill();
 
-        // Torso chest highlight
+        // Chest muscle highlight (pectoral lines)
         if (!pixelated) {
-            const chestHL = ctx.createRadialGradient(cx, torsoTop + bodyH*0.25, 0, cx, torsoTop + bodyH*0.25, bodyW*0.5);
-            chestHL.addColorStop(0, 'rgba(255,255,255,0.18)');
+            const chestHL = ctx.createRadialGradient(cx - bodyW*0.15, torsoTop + bodyH*0.22, 0, cx - bodyW*0.15, torsoTop + bodyH*0.22, bodyW*0.42);
+            chestHL.addColorStop(0, 'rgba(255,255,255,0.20)');
             chestHL.addColorStop(1, 'rgba(255,255,255,0)');
             ctx.fillStyle = chestHL;
             ctx.beginPath();
             ctx.roundRect(cx - bodyW/2, torsoTop, bodyW, bodyH, 8*S);
             ctx.fill();
+
+            // Pectoral division line
+            ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+            ctx.lineWidth = 1.5*S;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(cx, torsoTop + 8*S);
+            ctx.lineTo(cx, torsoTop + bodyH * 0.52);
+            ctx.stroke();
+
+            // Ab lines (horizontal)
+            ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+            ctx.lineWidth = 1*S;
+            [0.38, 0.52, 0.66].forEach(frac => {
+                const y = torsoTop + bodyH * frac;
+                ctx.beginPath();
+                ctx.moveTo(cx - bodyW * 0.4, y);
+                ctx.lineTo(cx + bodyW * 0.4, y);
+                ctx.stroke();
+            });
         }
 
-        // — ARMS —
-        ctx.fillStyle = bodyCol;
-        // Left arm
+        // — NECK —
+        const neckW = headR * 0.45;
+        const neckH = headR * 0.35;
+        const neckGrad = ctx.createLinearGradient(cx - neckW, torsoTop - neckH, cx + neckW, torsoTop);
+        neckGrad.addColorStop(0, darkenColor(skin, 10));
+        neckGrad.addColorStop(1, skin);
+        ctx.fillStyle = neckGrad;
         ctx.beginPath();
-        ctx.roundRect(cx - bodyW/2 - armW + 2*S, torsoTop + 4*S, armW, armH, pixelated ? 0 : 6*S);
+        ctx.roundRect(cx - neckW, torsoTop - neckH, neckW * 2, neckH + 2*S, pixelated ? 0 : 3*S);
+        ctx.fill();
+
+        // — ARMS — with shoulder roundness and hand
+        const shoulderY = torsoTop + 4*S;
+        // Left arm
+        const leftArmGrad = ctx.createLinearGradient(cx - bodyW/2 - armW + 2*S, 0, cx - bodyW/2 + 2*S, 0);
+        leftArmGrad.addColorStop(0, darkenColor(bodyCol, 20));
+        leftArmGrad.addColorStop(0.5, lightenColor(bodyCol, 10));
+        leftArmGrad.addColorStop(1, darkenColor(bodyCol, 5));
+        ctx.fillStyle = leftArmGrad;
+        ctx.beginPath();
+        ctx.roundRect(cx - bodyW/2 - armW + 2*S, shoulderY, armW, armH, pixelated ? 0 : [6*S, 6*S, 5*S, 5*S]);
         ctx.fill();
         // Right arm
+        const rightArmGrad = ctx.createLinearGradient(cx + bodyW/2 - 2*S, 0, cx + bodyW/2 - 2*S + armW, 0);
+        rightArmGrad.addColorStop(0, lightenColor(bodyCol, 10));
+        rightArmGrad.addColorStop(0.5, bodyCol);
+        rightArmGrad.addColorStop(1, darkenColor(bodyCol, 25));
+        ctx.fillStyle = rightArmGrad;
         ctx.beginPath();
-        ctx.roundRect(cx + bodyW/2 - 2*S, torsoTop + 4*S, armW, armH, pixelated ? 0 : 6*S);
+        ctx.roundRect(cx + bodyW/2 - 2*S, shoulderY, armW, armH, pixelated ? 0 : [6*S, 6*S, 5*S, 5*S]);
         ctx.fill();
 
-        // — HEAD —
-        const headGrad = ctx.createRadialGradient(cx - headR*0.2, torsoTop - headR*0.8, headR*0.1, cx, torsoTop - headR*0.5, headR);
-        headGrad.addColorStop(0, lightenColor(skin, 20));
-        headGrad.addColorStop(0.7, skin);
-        headGrad.addColorStop(1, darkenColor(skin, 20));
+        // Shoulder sphere overlay for roundness
+        if (!pixelated) {
+            const lSh = ctx.createRadialGradient(cx - bodyW/2 - armW*0.1, shoulderY + armW*0.3, 0, cx - bodyW/2 - armW*0.1, shoulderY + armW*0.3, armW*0.6);
+            lSh.addColorStop(0, 'rgba(255,255,255,0.18)');
+            lSh.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = lSh;
+            ctx.beginPath(); ctx.arc(cx - bodyW/2 - armW*0.1, shoulderY + armW*0.3, armW*0.6, 0, Math.PI*2); ctx.fill();
+            const rSh = ctx.createRadialGradient(cx + bodyW/2 + armW*0.1, shoulderY + armW*0.3, 0, cx + bodyW/2 + armW*0.1, shoulderY + armW*0.3, armW*0.6);
+            rSh.addColorStop(0, 'rgba(255,255,255,0.18)');
+            rSh.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = rSh;
+            ctx.beginPath(); ctx.arc(cx + bodyW/2 + armW*0.1, shoulderY + armW*0.3, armW*0.6, 0, Math.PI*2); ctx.fill();
+        }
+
+        // Hands (simple mitten shapes at end of arms)
+        const handY = shoulderY + armH - 2*S;
+        ctx.fillStyle = skin;
+        // Left hand
+        ctx.beginPath();
+        ctx.ellipse(cx - bodyW/2 - armW/2 + 2*S, handY + armW * 0.45, armW*0.5, armW*0.45, 0, 0, Math.PI*2);
+        ctx.fill();
+        // Right hand
+        ctx.beginPath();
+        ctx.ellipse(cx + bodyW/2 + armW/2 - 2*S, handY + armW * 0.45, armW*0.5, armW*0.45, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // — HEAD — with proper proportions
+        const headY = torsoTop - headR * 0.5;
+        const headGrad = ctx.createRadialGradient(cx - headR*0.2, headY - headR*0.3, headR*0.1, cx, headY, headR * 1.05);
+        headGrad.addColorStop(0, lightenColor(skin, 25));
+        headGrad.addColorStop(0.5, skin);
+        headGrad.addColorStop(0.85, darkenColor(skin, 15));
+        headGrad.addColorStop(1, darkenColor(skin, 30));
         ctx.fillStyle = headGrad;
         ctx.beginPath();
-        ctx.ellipse(cx, torsoTop - headR * 0.5, headR, headR, 0, 0, Math.PI * 2);
+        // Slightly ovoid head (wider at cheeks)
+        ctx.ellipse(cx, headY, headR * 1.02, headR, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Eyes
-        const eyeY = torsoTop - headR * 0.4;
-        const eyeSpacing = headR * 0.4;
-        const eyeR = headR * 0.14;
-        ctx.fillStyle = '#1a0a0a';
-        ctx.beginPath(); ctx.arc(cx - eyeSpacing, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx + eyeSpacing, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
-        // Eye shine
-        ctx.fillStyle = 'rgba(255,255,255,0.7)';
-        ctx.beginPath(); ctx.arc(cx - eyeSpacing + eyeR*0.4, eyeY - eyeR*0.3, eyeR*0.4, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx + eyeSpacing + eyeR*0.4, eyeY - eyeR*0.3, eyeR*0.4, 0, Math.PI * 2); ctx.fill();
+        // Ears
+        if (!pixelated) {
+            const earY = headY;
+            const earW = headR * 0.18;
+            const earH = headR * 0.28;
+            ctx.fillStyle = darkenColor(skin, 8);
+            // Left ear
+            ctx.beginPath(); ctx.ellipse(cx - headR * 0.95, earY, earW, earH, 0, 0, Math.PI * 2); ctx.fill();
+            // Right ear
+            ctx.beginPath(); ctx.ellipse(cx + headR * 0.95, earY, earW, earH, 0, 0, Math.PI * 2); ctx.fill();
+            // Inner ear
+            ctx.fillStyle = darkenColor(skin, 20);
+            ctx.beginPath(); ctx.ellipse(cx - headR * 0.95, earY + earH*0.05, earW * 0.55, earH * 0.5, 0.2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(cx + headR * 0.95, earY + earH*0.05, earW * 0.55, earH * 0.5, -0.2, 0, Math.PI * 2); ctx.fill();
+        }
 
-        // Mouth
-        ctx.strokeStyle = darkenColor(skin, 30);
-        ctx.lineWidth = 1.5 * S;
+        // Eyebrow ridge (subtle forehead shadow)
+        if (!pixelated) {
+            ctx.fillStyle = darkenColor(skin, 12);
+            ctx.beginPath();
+            ctx.ellipse(cx, headY - headR * 0.28, headR * 0.9, headR * 0.18, 0, Math.PI, 0);
+            ctx.fill();
+        }
+
+        // Eyes with iris
+        const eyeY = headY - headR * 0.12;
+        const eyeSpacing = headR * 0.38;
+        const eyeR = headR * 0.16;
+        // Eye whites
+        ctx.fillStyle = '#f8f4ef';
+        ctx.beginPath(); ctx.ellipse(cx - eyeSpacing, eyeY, eyeR * 1.3, eyeR, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx + eyeSpacing, eyeY, eyeR * 1.3, eyeR, 0, 0, Math.PI * 2); ctx.fill();
+        // Iris
+        ctx.fillStyle = '#3b2e1e';
+        ctx.beginPath(); ctx.arc(cx - eyeSpacing, eyeY, eyeR * 0.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + eyeSpacing, eyeY, eyeR * 0.8, 0, Math.PI * 2); ctx.fill();
+        // Pupil
+        ctx.fillStyle = '#0a0806';
+        ctx.beginPath(); ctx.arc(cx - eyeSpacing, eyeY, eyeR * 0.45, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + eyeSpacing, eyeY, eyeR * 0.45, 0, Math.PI * 2); ctx.fill();
+        // Eye shine
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.beginPath(); ctx.arc(cx - eyeSpacing + eyeR*0.35, eyeY - eyeR*0.3, eyeR*0.35, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + eyeSpacing + eyeR*0.35, eyeY - eyeR*0.3, eyeR*0.35, 0, Math.PI * 2); ctx.fill();
+
+        // Eyebrows
+        ctx.fillStyle = darkenColor(skin, 50);
+        ctx.beginPath();
+        ctx.ellipse(cx - eyeSpacing, eyeY - eyeR * 1.5, eyeR * 1.2, eyeR * 0.35, 0.15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(cx + eyeSpacing, eyeY - eyeR * 1.5, eyeR * 1.2, eyeR * 0.35, -0.15, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Nose
+        if (!pixelated) {
+            const noseY = eyeY + headR * 0.32;
+            const noseW = headR * 0.18;
+            ctx.fillStyle = darkenColor(skin, 18);
+            // Nose tip
+            ctx.beginPath(); ctx.ellipse(cx, noseY, noseW * 0.6, noseW * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+            // Nose bridge (subtle line)
+            ctx.strokeStyle = darkenColor(skin, 12);
+            ctx.lineWidth = 1.2*S;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(cx, eyeY + eyeR);
+            ctx.quadraticCurveTo(cx + noseW*0.3, noseY - noseW*0.5, cx, noseY);
+            ctx.stroke();
+            // Nostrils
+            ctx.fillStyle = darkenColor(skin, 28);
+            ctx.beginPath(); ctx.ellipse(cx - noseW*0.5, noseY + noseW*0.1, noseW*0.28, noseW*0.2, 0.3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(cx + noseW*0.5, noseY + noseW*0.1, noseW*0.28, noseW*0.2, -0.3, 0, Math.PI*2); ctx.fill();
+        }
+
+        // Mouth / Smile
+        const mouthY = headY + headR * 0.42;
+        ctx.strokeStyle = darkenColor(skin, 35);
+        ctx.lineWidth = pixelated ? Math.max(1, S) : 2*S;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.arc(cx, eyeY + headR*0.35, headR*0.2, 0.1, Math.PI - 0.1);
+        ctx.moveTo(cx - headR * 0.24, mouthY);
+        ctx.quadraticCurveTo(cx, mouthY + headR * 0.10, cx + headR * 0.24, mouthY);
         ctx.stroke();
+
+        // Lip line (upper)
+        if (!pixelated) {
+            ctx.strokeStyle = darkenColor(skin, 25);
+            ctx.lineWidth = 1.2*S;
+            ctx.beginPath();
+            ctx.moveTo(cx - headR * 0.22, mouthY);
+            ctx.quadraticCurveTo(cx - headR * 0.08, mouthY - headR * 0.045, cx, mouthY - headR * 0.035);
+            ctx.quadraticCurveTo(cx + headR * 0.08, mouthY - headR * 0.045, cx + headR * 0.22, mouthY);
+            ctx.stroke();
+        }
 
         return { torsoTop, torsoBot, headR, bodyW, armW };
     }
@@ -5321,37 +5588,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const fur = base;
         const belly = lightenColor(acc, 20);
+        const darkFur = darkenColor(base, 22);
 
-        // Body
-        ctx.fillStyle = fur;
+        // Volumetric Body Gradient
+        const bodyGrad = ctx.createRadialGradient(cx - 5*S, cy + 5*S, 10*S, cx, cy + 8*S, 44*S);
+        bodyGrad.addColorStop(0, lightenColor(fur, 18));
+        bodyGrad.addColorStop(0.7, fur);
+        bodyGrad.addColorStop(1, darkFur);
+
+        ctx.fillStyle = bodyGrad;
         ctx.beginPath(); ctx.ellipse(cx, cy + 8*S, 44*S, 30*S, 0, 0, Math.PI*2); ctx.fill();
 
         // Belly patch
         ctx.fillStyle = belly;
         ctx.beginPath(); ctx.ellipse(cx - 5*S, cy + 12*S, 25*S, 18*S, 0, 0, Math.PI*2); ctx.fill();
 
-        // 4 Legs
-        const paws = [[-24*S,32*S],[-8*S,32*S],[8*S,32*S],[24*S,32*S]];
-        ctx.fillStyle = fur;
-        paws.forEach(([px, py]) => {
-            ctx.beginPath(); ctx.roundRect(cx+px-5*S, cy+py, 10*S, 26*S, 5*S); ctx.fill();
+        // 4 Legs with shadows
+        const paws = [
+            { x: -24*S, front: true },
+            { x: -8*S, front: false },
+            { x: 8*S, front: false },
+            { x: 24*S, front: true }
+        ];
+        paws.forEach(p => {
+            ctx.fillStyle = p.front ? fur : darkFur;
+            ctx.beginPath(); ctx.roundRect(cx + p.x - 5*S, cy + 14*S, 10*S, 18*S, 5*S); ctx.fill();
+            
+            // Paws details
+            ctx.fillStyle = belly;
+            ctx.beginPath(); ctx.ellipse(cx + p.x, cy + 32*S, 6*S, 3*S, 0, 0, Math.PI*2); ctx.fill();
         });
 
         // Tail
-        ctx.strokeStyle = fur; ctx.lineWidth = 10*S; ctx.lineCap = 'round';
+        ctx.strokeStyle = darkFur; ctx.lineWidth = 10*S; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(cx + 38*S, cy - 2*S); ctx.quadraticCurveTo(cx + 60*S, cy - 25*S, cx + 55*S, cy - 35*S); ctx.stroke();
 
         // Neck
         ctx.fillStyle = fur;
         ctx.beginPath(); ctx.ellipse(cx - 30*S, cy - 18*S, 16*S, 20*S, -0.3, 0, Math.PI*2); ctx.fill();
 
-        // Head
+        // Head (spherical volume)
+        const headGrad = ctx.createRadialGradient(cx - 44*S, cy - 30*S, 4*S, cx - 42*S, cy - 28*S, 22*S);
+        headGrad.addColorStop(0, lightenColor(fur, 20));
+        headGrad.addColorStop(0.7, fur);
+        headGrad.addColorStop(1, darkFur);
+        ctx.fillStyle = headGrad;
         ctx.beginPath(); ctx.ellipse(cx - 42*S, cy - 28*S, 22*S, 20*S, -0.1, 0, Math.PI*2); ctx.fill();
 
         // Muzzle / Snout (friendly dog mouth)
         ctx.fillStyle = belly;
         ctx.beginPath(); ctx.ellipse(cx - 58*S, cy - 24*S, 12*S, 9*S, 0, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#000';
+        ctx.fillStyle = '#0f172a';
         ctx.beginPath(); ctx.arc(cx - 64*S, cy - 27*S, 3.5*S, 0, Math.PI*2); ctx.fill(); // Nose
 
         // Tongue
@@ -5359,17 +5646,25 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.beginPath(); ctx.roundRect(cx - 60*S, cy - 19*S, 6*S, 10*S, 3*S); ctx.fill();
 
         // Floppy Ears
-        ctx.fillStyle = darkenColor(fur, 15);
+        ctx.fillStyle = darkFur;
         ctx.beginPath(); ctx.ellipse(cx - 38*S, cy - 26*S, 8*S, 16*S, 0.25, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.ellipse(cx - 48*S, cy - 26*S, 8*S, 16*S, -0.25, 0, Math.PI*2); ctx.fill();
 
-        // Big friendly eyes
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(cx - 46*S, cy - 34*S, 4.5*S, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx - 34*S, cy - 34*S, 4.5*S, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#1e1b4b';
-        ctx.beginPath(); ctx.arc(cx - 46*S, cy - 34*S, 2.5*S, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx - 34*S, cy - 34*S, 2.5*S, 0, Math.PI*2); ctx.fill();
+        // Big friendly eyes with pupil and spec reflection
+        [-1, 1].forEach(side => {
+            const eyeX = cx - 40*S + side*6*S;
+            const eyeY = cy - 34*S;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(eyeX, eyeY, 4.5*S, 0, Math.PI*2); ctx.fill();
+            
+            ctx.fillStyle = '#1e1b4b';
+            ctx.beginPath(); ctx.arc(eyeX, eyeY, 2.5*S, 0, Math.PI*2); ctx.fill();
+
+            // Spec
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(eyeX + 1*S, eyeY - 1*S, 1*S, 0, Math.PI*2); ctx.fill();
+        });
 
         ctx.restore();
     }
@@ -5382,59 +5677,156 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const coat = base;
         const chest = lightenColor(acc, 20);
+        const darkCoat = darkenColor(base, 25);
 
-        // Body (slender)
-        ctx.fillStyle = coat;
-        ctx.beginPath(); ctx.ellipse(cx, cy + 12*S, 38*S, 24*S, 0, 0, Math.PI*2); ctx.fill();
+        // Body Gradient (volume simulation)
+        const bodyGrad = ctx.createRadialGradient(cx - 5*S, cy + 5*S, 8*S, cx, cy + 12*S, 32*S);
+        bodyGrad.addColorStop(0, lightenColor(coat, 20));
+        bodyGrad.addColorStop(0.6, coat);
+        bodyGrad.addColorStop(1, darkCoat);
 
-        // Chest patch
-        ctx.fillStyle = chest;
-        ctx.beginPath(); ctx.ellipse(cx - 10*S, cy + 14*S, 20*S, 15*S, 0, 0, Math.PI*2); ctx.fill();
+        // Slender curved back body
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath(); 
+        ctx.ellipse(cx + 8*S, cy + 16*S, 32*S, 20*S, -0.1, 0, Math.PI*2); 
+        ctx.fill();
 
-        // 4 Legs
-        const paws = [[-20*S,32*S],[-6*S,32*S],[6*S,32*S],[20*S,32*S]];
-        ctx.fillStyle = coat;
-        paws.forEach(([px, py]) => {
-            ctx.beginPath(); ctx.roundRect(cx+px-4*S, cy+py, 8*S, 26*S, 4*S); ctx.fill();
+        // Chest/Shoulder connection patch
+        const chestGrad = ctx.createLinearGradient(cx - 20*S, cy + 5*S, cx - 5*S, cy + 25*S);
+        chestGrad.addColorStop(0, lightenColor(chest, 15));
+        chestGrad.addColorStop(1, darkenColor(chest, 10));
+        ctx.fillStyle = chestGrad;
+        ctx.beginPath(); 
+        ctx.ellipse(cx - 10*S, cy + 12*S, 18*S, 14*S, 0.15, 0, Math.PI*2); 
+        ctx.fill();
+
+        // Elegant curved tail with dual-tone shading
+        ctx.strokeStyle = darkCoat; 
+        ctx.lineWidth = 7.5*S; 
+        ctx.lineCap = 'round';
+        ctx.beginPath(); 
+        ctx.moveTo(cx + 28*S, cy + 10*S); 
+        ctx.quadraticCurveTo(cx + 62*S, cy - 8*S, cx + 52*S, cy - 38*S); 
+        ctx.stroke();
+
+        ctx.strokeStyle = coat; 
+        ctx.lineWidth = 4*S;
+        ctx.beginPath(); 
+        ctx.moveTo(cx + 28*S, cy + 10*S); 
+        ctx.quadraticCurveTo(cx + 60*S, cy - 8*S, cx + 51*S, cy - 36*S); 
+        ctx.stroke();
+
+        // 4 Legs with occlusion shadows at the joints
+        const paws = [
+            { x: -18*S, y: 32*S, front: true },
+            { x: -6*S, y: 32*S, front: false },
+            { x: 8*S, y: 32*S, front: false },
+            { x: 22*S, y: 32*S, front: true }
+        ];
+        paws.forEach(p => {
+            ctx.fillStyle = p.front ? coat : darkCoat;
+            ctx.beginPath(); 
+            ctx.roundRect(cx + p.x - 3.5*S, cy + 16*S, 7*S, 18*S, 3.5*S); 
+            ctx.fill();
+            
+            // Paw tips/details
+            ctx.fillStyle = chest;
+            ctx.beginPath();
+            ctx.ellipse(cx + p.x, cy + 34*S, 4.5*S, 2.5*S, 0, 0, Math.PI*2);
+            ctx.fill();
         });
-
-        // Elegant curved tail
-        ctx.strokeStyle = coat; ctx.lineWidth = 6*S; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(cx + 34*S, cy + 4*S); ctx.quadraticCurveTo(cx + 65*S, cy - 10*S, cx + 55*S, cy - 40*S); ctx.stroke();
 
         // Neck
         ctx.fillStyle = coat;
-        ctx.beginPath(); ctx.ellipse(cx - 24*S, cy - 14*S, 12*S, 18*S, -0.2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); 
+        ctx.ellipse(cx - 20*S, cy - 8*S, 10*S, 16*S, -0.22, 0, Math.PI*2); 
+        ctx.fill();
 
-        // Head
-        ctx.beginPath(); ctx.ellipse(cx - 32*S, cy - 25*S, 19*S, 18*S, 0, 0, Math.PI*2); ctx.fill();
+        // Head (rounded and organic)
+        const headGrad = ctx.createRadialGradient(cx - 30*S, cy - 25*S, 3*S, cx - 27*S, cy - 23*S, 20*S);
+        headGrad.addColorStop(0, lightenColor(coat, 22));
+        headGrad.addColorStop(0.7, coat);
+        headGrad.addColorStop(1, darkCoat);
+        ctx.fillStyle = headGrad;
+        ctx.beginPath(); 
+        ctx.ellipse(cx - 28*S, cy - 23*S, 19*S, 17*S, 0, 0, Math.PI*2); 
+        ctx.fill();
 
-        // Pointy Ears
-        ctx.fillStyle = darkenColor(coat, 20);
-        ctx.beginPath(); ctx.moveTo(cx - 45*S, cy - 38*S); ctx.lineTo(cx - 48*S, cy - 54*S); ctx.lineTo(cx - 34*S, cy - 42*S); ctx.closePath(); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(cx - 26*S, cy - 38*S); ctx.lineTo(cx - 22*S, cy - 54*S); ctx.lineTo(cx - 18*S, cy - 42*S); ctx.closePath(); ctx.fill();
+        // Pointy Ears with pink inner cavity
+        [-1, 1].forEach(side => {
+            const ex = cx - 28*S + side*12*S;
+            const ey = cy - 36*S;
+            
+            ctx.fillStyle = darkCoat;
+            ctx.beginPath();
+            ctx.moveTo(ex - 6*S, ey + 4*S);
+            ctx.lineTo(ex, ey - 14*S);
+            ctx.lineTo(ex + 8*S, ey + 2*S);
+            ctx.closePath();
+            ctx.fill();
 
-        // Eyes (green/yellow slitted)
-        ctx.fillStyle = '#a3e635'; // Lime green
-        ctx.beginPath(); ctx.ellipse(cx - 38*S, cy - 28*S, 5*S, 4*S, 0, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(cx - 26*S, cy - 28*S, 5*S, 4*S, 0, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#000'; // Slit pupil
-        ctx.fillRect(cx - 39*S, cy - 31*S, 2*S, 6*S);
-        ctx.fillRect(cx - 27*S, cy - 31*S, 2*S, 6*S);
+            // Inner ear
+            ctx.fillStyle = '#fda4af'; // Soft rose pink
+            ctx.beginPath();
+            ctx.moveTo(ex - 3*S, ey + 3*S);
+            ctx.lineTo(ex, ey - 9*S);
+            ctx.lineTo(ex + 5*S, ey + 1*S);
+            ctx.closePath();
+            ctx.fill();
+        });
 
-        // Muzzle & whiskers
-        ctx.fillStyle = chest;
-        ctx.beginPath(); ctx.arc(cx - 34*S, cy - 20*S, 3.5*S, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx - 30*S, cy - 20*S, 3.5*S, 0, Math.PI*2); ctx.fill();
+        // Glowing realistic eyes (with beautiful pupil and specular reflection)
+        [-1, 1].forEach(side => {
+            const eyeX = cx - 28*S + side*7.5*S;
+            const eyeY = cy - 26*S;
+
+            // Iris
+            const irisGrad = ctx.createRadialGradient(eyeX, eyeY, 0, eyeX, eyeY, 4*S);
+            irisGrad.addColorStop(0, '#eab308'); // Golden yellow core
+            irisGrad.addColorStop(1, '#a3e635'); // Lime green edge
+            ctx.fillStyle = irisGrad;
+            ctx.beginPath(); 
+            ctx.ellipse(eyeX, eyeY, 4.5*S, 4*S, 0, 0, Math.PI*2); 
+            ctx.fill();
+
+            // Slit pupil
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.ellipse(eyeX, eyeY, 1.2*S, 3.2*S, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            // Specular reflection dot
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(eyeX + 1.2*S, eyeY - 1.2*S, 0.9*S, 0, Math.PI*2);
+            ctx.fill();
+        });
+
+        // Muzzle & Whiskers
+        ctx.fillStyle = '#f1f5f9';
+        ctx.beginPath(); ctx.arc(cx - 30.5*S, cy - 19.5*S, 3.2*S, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx - 26.5*S, cy - 19.5*S, 3.2*S, 0, Math.PI*2); ctx.fill();
         
-        ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1*S;
-        ctx.beginPath(); ctx.moveTo(cx - 36*S, cy - 20*S); ctx.lineTo(cx - 48*S, cy - 22*S); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx - 36*S, cy - 20*S); ctx.lineTo(cx - 46*S, cy - 16*S); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx - 28*S, cy - 20*S); ctx.lineTo(cx - 16*S, cy - 22*S); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx - 28*S, cy - 20*S); ctx.lineTo(cx - 18*S, cy - 16*S); ctx.stroke();
+        // Nose (pink)
+        ctx.fillStyle = '#f43f5e';
+        ctx.beginPath();
+        ctx.moveTo(cx - 30*S, cy - 21.5*S);
+        ctx.lineTo(cx - 27*S, cy - 21.5*S);
+        ctx.lineTo(cx - 28.5*S, cy - 19.5*S);
+        ctx.closePath();
+        ctx.fill();
+
+        // Delicate Whiskers
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)'; 
+        ctx.lineWidth = 0.85*S;
+        ctx.beginPath(); ctx.moveTo(cx - 32*S, cy - 19*S); ctx.lineTo(cx - 46*S, cy - 21*S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - 32*S, cy - 19*S); ctx.lineTo(cx - 44*S, cy - 15*S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - 25*S, cy - 19*S); ctx.lineTo(cx - 11*S, cy - 21*S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - 25*S, cy - 19*S); ctx.lineTo(cx - 13*S, cy - 15*S); ctx.stroke();
 
         ctx.restore();
     }
+
 
     // ─── CHICKEN ───────────────────────────────────────────────────────────
     function drawCreatureChicken(cx, cy, base, acc, glow, style) {
@@ -6100,59 +6492,188 @@ document.addEventListener('DOMContentLoaded', () => {
         const w = canvas.width;
         const h = canvas.height;
 
-        // 1. Clean black outlines for cartoon/pixel style (destination-over = draws behind existing pixels)
+        // ═══════════════════════════════════════════════════════════
+        // 1. PIXEL ART — quantize colors + sharp outlines
+        // ═══════════════════════════════════════════════════════════
+        if (style === 'pixel') {
+            // Reduce palette to chunky pixels (2× downscale/upscale trick)
+            const factor = Math.max(2, Math.round(w / 64));
+            const tiny = document.createElement('canvas');
+            tiny.width  = Math.round(w / factor);
+            tiny.height = Math.round(h / factor);
+            const tinyCtx = tiny.getContext('2d');
+            tinyCtx.imageSmoothingEnabled = false;
+            tinyCtx.drawImage(tempCanvas, 0, 0, tiny.width, tiny.height);
+            ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(0, 0, w, h);
+            ctx.drawImage(tiny, 0, 0, w, h);
+
+            // Refresh tempCanvas with quantized version
+            tempCtx.clearRect(0, 0, w, h);
+            tempCtx.drawImage(canvas, 0, 0);
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 2. OUTLINES — thick + sharp for cartoon/pixel, thin for others
+        // ═══════════════════════════════════════════════════════════
         if (style === 'cartoon' || style === 'pixel') {
             ctx.save();
-            const offset = style === 'pixel' ? Math.max(1, Math.round(w / 128)) : Math.max(2, Math.round(w / 100));
+            const outlineW = style === 'pixel'
+                ? Math.max(1, Math.round(w / 128))
+                : Math.max(2, Math.round(w / 80));
             ctx.globalCompositeOperation = 'destination-over';
             ctx.globalAlpha = 1;
-            // Draw solid black silhouette behind the image
-            for (let dx = -offset; dx <= offset; dx += offset) {
-                for (let dy = -offset; dy <= offset; dy += offset) {
-                    if (dx !== 0 || dy !== 0) {
-                        ctx.drawImage(tempCanvas, dx, dy);
-                    }
-                }
+            // Black silhouette pushed in 8 directions
+            const offsets = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+            for (const [dx, dy] of offsets) {
+                ctx.drawImage(tempCanvas, dx * outlineW, dy * outlineW);
             }
+            ctx.restore();
+
+            // Inner line-art shading: dark edges inside the shape
+            ctx.save();
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.globalAlpha = 0.15;
+            ctx.drawImage(tempCanvas, 0, 0);
+            ctx.restore();
+        } else if (style === 'vector') {
+            // Thin crisp outline
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.globalAlpha = 0.7;
+            const ov = Math.max(1, Math.round(w / 200));
+            [[0,-ov],[0,ov],[-ov,0],[ov,0]].forEach(([dx,dy]) => ctx.drawImage(tempCanvas, dx, dy));
+            ctx.restore();
+        } else {
+            // Realistic/voxel: ultra-thin shadow edge
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.globalAlpha = 0.45;
+            const rv = Math.max(1, Math.round(w / 220));
+            [[rv,rv],[-rv,rv]].forEach(([dx,dy]) => ctx.drawImage(tempCanvas, dx, dy));
             ctx.restore();
         }
 
-        // 2. High-Definition directional light shader overlay in 2D
+        // ═══════════════════════════════════════════════════════════
+        // 3. DIRECTIONAL LIGHTING — top-left key light + bottom-right fill
+        // ═══════════════════════════════════════════════════════════
         ctx.save();
         ctx.globalCompositeOperation = 'source-atop';
-        
-        // Simular un sutil gradiente de luz direccional desde arriba a la izquierda
-        const lightGrad = ctx.createLinearGradient(0, 0, w, h);
-        lightGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
-        lightGrad.addColorStop(0.4, 'rgba(255,255,255,0)');
-        lightGrad.addColorStop(0.8, 'rgba(0,0,0,0)');
-        lightGrad.addColorStop(1, 'rgba(0,0,0,0.18)'); // soft shadow bottom right
-        
-        ctx.fillStyle = lightGrad;
+
+        // Key light: upper-left illumination
+        const keyLight = ctx.createLinearGradient(0, 0, w * 0.6, h * 0.7);
+        keyLight.addColorStop(0,   'rgba(255,255,240,0.14)');
+        keyLight.addColorStop(0.3, 'rgba(255,255,255,0.06)');
+        keyLight.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.fillStyle = keyLight;
         ctx.fillRect(0, 0, w, h);
+
+        // Fill light: lower-right shadow
+        const fillLight = ctx.createLinearGradient(w, h, w * 0.4, h * 0.3);
+        fillLight.addColorStop(0,   'rgba(20,10,40,0.20)');
+        fillLight.addColorStop(0.4, 'rgba(0,0,0,0.10)');
+        fillLight.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.fillStyle = fillLight;
+        ctx.fillRect(0, 0, w, h);
+
         ctx.restore();
 
-        // 3. Subtle micro-grain noise for high-fidelity textures
+        // ═══════════════════════════════════════════════════════════
+        // 4. RIM LIGHT — subtle cool-blue edge on right side
+        // ═══════════════════════════════════════════════════════════
+        if (style === 'realistic' || style === 'cartoon') {
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            ctx.globalAlpha = style === 'realistic' ? 0.08 : 0.05;
+            const rimLight = ctx.createLinearGradient(w, 0, w * 0.5, h);
+            rimLight.addColorStop(0,   'rgba(120,180,255,1)');
+            rimLight.addColorStop(0.15,'rgba(60,120,255,0.5)');
+            rimLight.addColorStop(1,   'rgba(0,0,0,0)');
+            ctx.fillStyle = rimLight;
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 5. AMBIENT OCCLUSION — darken corners & contact points
+        // ═══════════════════════════════════════════════════════════
+        if (style !== 'pixel') {
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-atop';
+            // Corner darkening
+            const ao = ctx.createRadialGradient(w/2, h/2, h * 0.25, w/2, h/2, h * 0.6);
+            ao.addColorStop(0, 'rgba(0,0,0,0)');
+            ao.addColorStop(1, 'rgba(0,0,0,0.12)');
+            ctx.fillStyle = ao;
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 6. CEL SHADE STEP — cartoon style gets hard shadow bands
+        // ═══════════════════════════════════════════════════════════
+        if (style === 'cartoon') {
+            ctx.save();
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.globalAlpha = 0.10;
+            // Diagonal shadow band from top-right to lower-left
+            const celGrad = ctx.createLinearGradient(w, 0, 0, h);
+            celGrad.addColorStop(0,   'rgba(60,40,120,1)');
+            celGrad.addColorStop(0.4, 'rgba(60,40,120,0)');
+            celGrad.addColorStop(0.6, 'rgba(60,40,120,0)');
+            celGrad.addColorStop(1,   'rgba(60,40,120,0.8)');
+            ctx.fillStyle = celGrad;
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 7. FILM GRAIN — adds texture and depth
+        // ═══════════════════════════════════════════════════════════
         if (style === 'realistic' || style === 'vector' || style === 'cartoon') {
             ctx.save();
             ctx.globalCompositeOperation = 'overlay';
-            ctx.globalAlpha = style === 'realistic' ? 0.055 : 0.025;
-            for (let i = 0; i < w; i += 3) {
-                for (let j = 0; j < h; j += 3) {
-                    ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
-                    ctx.fillRect(i, j, 3, 3);
+            const grainAlpha = style === 'realistic' ? 0.04 : 0.018;
+            const grainSize  = style === 'realistic' ? 2 : 3;
+            ctx.globalAlpha = grainAlpha;
+            for (let i = 0; i < w; i += grainSize) {
+                for (let j = 0; j < h; j += grainSize) {
+                    const v = Math.random() > 0.5 ? 255 : 0;
+                    ctx.fillStyle = `rgb(${v},${v},${v})`;
+                    ctx.fillRect(i, j, grainSize, grainSize);
                 }
             }
             ctx.restore();
         }
 
-        // 3. Very subtle vignette (source-atop = only affects existing pixels, safe)
+        // ═══════════════════════════════════════════════════════════
+        // 8. CHROMATIC ABERRATION (subtle) — realistic only
+        // ═══════════════════════════════════════════════════════════
+        if (style === 'realistic') {
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            ctx.globalAlpha = 0.025;
+            // Red channel shifted left
+            ctx.drawImage(tempCanvas, -1, 0);
+            ctx.restore();
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            ctx.globalAlpha = 0.015;
+            // Blue channel shifted right
+            ctx.drawImage(tempCanvas, 1, 0);
+            ctx.restore();
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 9. VIGNETTE — final cinematic frame
+        // ═══════════════════════════════════════════════════════════
         ctx.save();
         ctx.globalCompositeOperation = 'source-atop';
-        const grad = ctx.createRadialGradient(w/2, h/2, w * 0.3, w/2, h/2, w * 0.52);
-        grad.addColorStop(0, 'rgba(255,255,255,0.03)');
-        grad.addColorStop(1, 'rgba(0,0,0,0.10)');
-        ctx.fillStyle = grad;
+        const vignette = ctx.createRadialGradient(w/2, h/2, w * 0.28, w/2, h/2, w * 0.56);
+        vignette.addColorStop(0, 'rgba(255,255,255,0.015)');
+        vignette.addColorStop(0.6, 'rgba(0,0,0,0)');
+        vignette.addColorStop(1,   'rgba(0,0,0,0.18)');
+        ctx.fillStyle = vignette;
         ctx.fillRect(0, 0, w, h);
         ctx.restore();
     }

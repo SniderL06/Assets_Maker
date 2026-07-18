@@ -35,15 +35,15 @@ const HFGenerator = (() => {
     // --- Model Endpoints ---
     const MODELS = [
         // FLUX.1-schnell — fast, very high quality, runs well on free tier
-        'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
+        'https://api.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
         // SDXL — top quality
-        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+        'https://api.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
         // SD 2.1 — reliable fallback
-        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1',
+        'https://api.huggingface.co/models/stabilityai/stable-diffusion-2-1',
         // Anything v4 — great for game art / anime style
-        'https://api-inference.huggingface.co/models/xyn-ai/anything-v4.0',
+        'https://api.huggingface.co/models/xyn-ai/anything-v4.0',
         // Dreamshaper — great for characters
-        'https://api-inference.huggingface.co/models/Lykon/dreamshaper-8',
+        'https://api.huggingface.co/models/Lykon/dreamshaper-8',
     ];
 
     // Style→model preference mapping
@@ -93,16 +93,33 @@ const HFGenerator = (() => {
             }
         };
 
-        const response = await fetch(modelUrl, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'X-Wait-For-Model': 'true'
-            },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(90000) // 90s timeout
-        });
+        let response;
+        try {
+            response = await fetch(modelUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-Wait-For-Model': 'true'
+                },
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(90000) // 90s timeout
+            });
+        } catch (fetchErr) {
+            // If DNS/Connection failed, try via a public CORS/DNS bypass gateway
+            console.warn('[HFGenerator] Direct fetch failed, trying via proxy gateway...', fetchErr);
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(modelUrl)}`;
+            response = await fetch(proxyUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-Wait-For-Model': 'true'
+                },
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(90000)
+            });
+        }
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
@@ -111,7 +128,6 @@ const HFGenerator = (() => {
 
         const contentType = response.headers.get('content-type') || '';
         if (!contentType.startsWith('image/')) {
-            // Might still be loading (503 = model is loading)
             throw new Error(`Non-image response: ${contentType}`);
         }
 

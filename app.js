@@ -4632,20 +4632,48 @@ document.addEventListener('DOMContentLoaded', () => {
         return { torsoTop, torsoBot, headR, bodyW, armW };
     }
 
-    function lightenColor(hex, amount) {
-        const r = Math.min(255, parseInt(hex.slice(1,3),16) + amount);
-        const g = Math.min(255, parseInt(hex.slice(3,5),16) + amount);
-        const b = Math.min(255, parseInt(hex.slice(5,7),16) + amount);
-        return `rgb(${r},${g},${b})`;
+    function parseColor(col) {
+        if (!col) return { r: 128, g: 128, b: 128 };
+        col = col.trim();
+        // Handle rgb/rgba formats
+        if (col.startsWith('rgb')) {
+            const matches = col.match(/\d+/g);
+            if (matches && matches.length >= 3) {
+                return {
+                    r: parseInt(matches[0]),
+                    g: parseInt(matches[1]),
+                    b: parseInt(matches[2])
+                };
+            }
+        }
+        // Handle hex formats
+        if (col.startsWith('#')) {
+            let hex = col.slice(1);
+            if (hex.length === 3) {
+                hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            }
+            return {
+                r: parseInt(hex.slice(0, 2), 16) || 0,
+                g: parseInt(hex.slice(2, 4), 16) || 0,
+                b: parseInt(hex.slice(4, 6), 16) || 0
+            };
+        }
+        // Named colors or fallback
+        return { r: 128, g: 128, b: 128 };
     }
-    function darkenColor(hex, amount) {
-        const r = Math.max(0, parseInt(hex.slice(1,3),16) - amount);
-        const g = Math.max(0, parseInt(hex.slice(3,5),16) - amount);
-        const b = Math.max(0, parseInt(hex.slice(5,7),16) - amount);
-        return `rgb(${r},${g},${b})`;
+
+    function lightenColor(col, amount) {
+        const { r, g, b } = parseColor(col);
+        return `rgb(${Math.min(255, r + amount)},${Math.min(255, g + amount)},${Math.min(255, b + amount)})`;
+    }
+    
+    function darkenColor(col, amount) {
+        const { r, g, b } = parseColor(col);
+        return `rgb(${Math.max(0, r - amount)},${Math.max(0, g - amount)},${Math.max(0, b - amount)})`;
     }
     /** Safely replace the alpha channel in an rgba() string e.g. glowAlpha(glow, 0.8) */
     function glowAlpha(rgbaStr, alpha) {
+        if (!rgbaStr) return `rgba(168,85,247,${alpha})`;
         const parts = rgbaStr.split(',');
         if (parts.length >= 4) {
             parts[3] = ' ' + alpha + ')';

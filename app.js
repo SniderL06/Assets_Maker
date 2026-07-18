@@ -6117,15 +6117,30 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.restore();
         }
 
-        // 2. Very subtle noise grain — much less aggressive (was causing ugly grey wash)
-        if (style === 'realistic') {
+        // 2. High-Definition directional light shader overlay in 2D
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-atop';
+        
+        // Simular un sutil gradiente de luz direccional desde arriba a la izquierda
+        const lightGrad = ctx.createLinearGradient(0, 0, w, h);
+        lightGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
+        lightGrad.addColorStop(0.4, 'rgba(255,255,255,0)');
+        lightGrad.addColorStop(0.8, 'rgba(0,0,0,0)');
+        lightGrad.addColorStop(1, 'rgba(0,0,0,0.18)'); // soft shadow bottom right
+        
+        ctx.fillStyle = lightGrad;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+
+        // 3. Subtle micro-grain noise for high-fidelity textures
+        if (style === 'realistic' || style === 'vector' || style === 'cartoon') {
             ctx.save();
             ctx.globalCompositeOperation = 'overlay';
-            ctx.globalAlpha = 0.04; // was 0.08, now very subtle
-            for (let i = 0; i < w; i += 2) {
-                for (let j = 0; j < h; j += 2) {
+            ctx.globalAlpha = style === 'realistic' ? 0.055 : 0.025;
+            for (let i = 0; i < w; i += 3) {
+                for (let j = 0; j < h; j += 3) {
                     ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
-                    ctx.fillRect(i, j, 2, 2);
+                    ctx.fillRect(i, j, 3, 3);
                 }
             }
             ctx.restore();

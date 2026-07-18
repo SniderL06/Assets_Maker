@@ -3083,6 +3083,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scene.add(shadowPlane);
 
         // Build base textures & material
+        window.materials = materials;
         materials.canvasTex = new THREE.CanvasTexture(canvas);
         materials.canvasTex.minFilter = THREE.LinearMipMapLinearFilter;
         materials.canvasTex.magFilter = THREE.LinearFilter;

@@ -132,23 +132,28 @@ const RealisticCharacter = (function () {
         return new THREE.CylinderGeometry(rTop, rBot, height, segs, 3);
     }
 
-    /** Skin material with SSS simulation */
+    /** Skin material with SSS simulation and custom canvas mapping support */
     function skinMat(color) {
         const c = new THREE.Color(color);
+        // If a canvas texture is available, we blend it or use standard texture mapping
+        const texture = window.materials && window.materials.canvasTex ? window.materials.canvasTex : null;
         return new THREE.MeshStandardMaterial({
             color: c,
-            roughness: 0.72,
-            metalness: 0.0,
-            emissive: c.clone().multiplyScalar(0.06),
+            map: texture,
+            roughness: 0.65,
+            metalness: 0.02,
+            emissive: c.clone().multiplyScalar(0.08),
         });
     }
 
-    /** Cloth material */
-    function clothMat(color, rough = 0.88) {
+    /** Cloth material with canvas texture support for complex clothing patterns */
+    function clothMat(color, rough = 0.85) {
+        const texture = window.materials && window.materials.canvasTex ? window.materials.canvasTex : null;
         return new THREE.MeshStandardMaterial({
             color: new THREE.Color(color),
+            map: texture,
             roughness: rough,
-            metalness: 0.0,
+            metalness: 0.05,
         });
     }
 
@@ -173,6 +178,22 @@ const RealisticCharacter = (function () {
         const headGeo = new THREE.SphereGeometry(0.42, 32, 32);
         // Slightly flatten vertically for skull shape
         headGeo.scale(1.0, 1.05, 0.95);
+        
+        // Planar frontal UV projection mapping for the head face
+        const headUvs = headGeo.attributes.uv;
+        const headPositions = headGeo.attributes.position;
+        for (let i = 0; i < headPositions.count; i++) {
+            const x = headPositions.getX(i);
+            const y = headPositions.getY(i);
+            const z = headPositions.getZ(i);
+            // Project XY flatly for the front face (z > 0)
+            if (z > -0.1) {
+                const u = 0.5 + (x / 0.84) * 0.8;
+                const v = 0.5 + (y / 0.84) * 0.8;
+                headUvs.setXY(i, clamp(u, 0, 1), clamp(v, 0, 1));
+            }
+        }
+        
         const headMesh = new THREE.Mesh(headGeo, skinMat(skinColor));
         headMesh.castShadow = true;
         headMesh.name = 'head_mesh';
@@ -432,6 +453,21 @@ const RealisticCharacter = (function () {
             }
             posAttr.setX(i, posAttr.getX(i) * xScale);
         }
+        
+        // Planar frontal UV projection mapping for torso front details
+        const torsoUvs = torsoGeo.attributes.uv;
+        for (let i = 0; i < posAttr.count; i++) {
+            const x = posAttr.getX(i);
+            const y = posAttr.getY(i);
+            const z = posAttr.getZ(i);
+            if (z > -0.05) {
+                // Project flatly from the canvas space
+                const u = 0.5 + (x / 1.0) * 0.9;
+                const v = 0.5 + (y / 1.2) * 0.9;
+                torsoUvs.setXY(i, clamp(u, 0, 1), clamp(v, 0, 1));
+            }
+        }
+        
         torsoGeo.computeVertexNormals();
 
         const torsoMesh = new THREE.Mesh(torsoGeo, clothMat(clothColor));

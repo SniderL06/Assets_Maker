@@ -90,19 +90,27 @@ const Free3DGenerator = (() => {
         // just composite our transparent PNG onto a neutral gray, which is
         // exactly what it expects for a pre-segmented image.
         if (onProgress) onProgress(30, 'Preprocesando imagen (TripoSR)...');
-        const preprocessResult = await client.predict('/preprocess', {
-            input_image: imageFile,
-            do_remove_background: false,
-            foreground_ratio: 0.9,
-        });
+        // NOTA: se usa el formato posicional (array) en vez de un objeto con
+        // nombres de clave. La metadata de la API de este Space no expone
+        // `parameter_name` de forma fiable para cada parámetro, lo que hace
+        // que el cliente de Gradio falle al mapear claves con nombre
+        // ("No value provided for required parameter: undefined"). El orden
+        // debe coincidir exactamente con la firma real en app.py:
+        // def preprocess(input_image, do_remove_background, foreground_ratio)
+        const preprocessResult = await client.predict('/preprocess', [
+            imageFile,
+            false, // do_remove_background
+            0.9,   // foreground_ratio
+        ]);
         const processedImage = preprocessResult?.data?.[0];
         if (!processedImage) throw new Error('TripoSR no devolvió una imagen preprocesada.');
 
         if (onProgress) onProgress(50, 'Generando malla 3D (puede tardar 20-90s)...');
-        const generateResult = await client.predict('/generate', {
-            image: processedImage,
-            mc_resolution: 256,
-        });
+        // def generate(image, mc_resolution, formats=["obj", "glb"])
+        const generateResult = await client.predict('/generate', [
+            processedImage,
+            256, // mc_resolution
+        ]);
         // outputs=[output_model_obj, output_model_glb] in that order
         const glbFile = generateResult?.data?.[1];
         const glbUrl = glbFile?.url || glbFile?.path;

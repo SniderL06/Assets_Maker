@@ -35,15 +35,15 @@ const HFGenerator = (() => {
     // --- Model Endpoints ---
     const MODELS = [
         // FLUX.1-schnell — fast, very high quality, runs well on free tier
-        'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
+        'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell',
         // SDXL — top quality
-        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+        'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0',
         // SD 2.1 — reliable fallback
-        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1',
+        'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-2-1',
         // Anything v4 — great for game art / anime style
-        'https://api-inference.huggingface.co/models/xyn-ai/anything-v4.0',
+        'https://router.huggingface.co/hf-inference/models/xyn-ai/anything-v4.0',
         // Dreamshaper — great for characters
-        'https://api-inference.huggingface.co/models/Lykon/dreamshaper-8',
+        'https://router.huggingface.co/hf-inference/models/Lykon/dreamshaper-8',
     ];
 
     // Style→model preference mapping

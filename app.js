@@ -3963,6 +3963,237 @@ document.addEventListener('DOMContentLoaded', () => {
             seal.position.set(0, 0.1, 0.29);
             group.add(seal);
         }
+        else if (prompt.includes('arbol') || prompt.includes('árbol') || prompt.includes('tree') || prompt.includes('planta') || prompt.includes('plant') || prompt.includes('flor') || prompt.includes('flower') || prompt.includes('hongo') || prompt.includes('mushroom') || prompt.includes('seta')) {
+            // --- 3D Tree / Plant / Flower / Mushroom (this category didn't exist
+            // before — prompts like "árbol" used to fall through to the generic
+            // gem fallback, which is the jagged purple blob you saw). ---
+            const isMushroom = prompt.includes('hongo') || prompt.includes('mushroom') || prompt.includes('seta');
+            const isFlower = prompt.includes('flor') || prompt.includes('flower');
+            const natureColorHex = document.querySelector('.swatch.selected')?.getAttribute('data-color');
+
+            if (isMushroom) {
+                // Stem
+                const stemMat = new THREE.MeshStandardMaterial({ color: 0xf5f0e0, roughness: 0.7 });
+                const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.42, 16), stemMat);
+                stem.position.y = -0.19;
+                stem.castShadow = true;
+                group.add(stem);
+
+                // Cap (dome) + gill underside, instead of a single flat sphere
+                const capMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(natureColorHex || '#dc2626'), roughness: 0.55 });
+                const cap = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2.1), capMat);
+                cap.position.y = 0.05;
+                cap.castShadow = true;
+                group.add(cap);
+                const gillMat = new THREE.MeshStandardMaterial({ color: 0xe5decf, roughness: 0.9, side: THREE.DoubleSide });
+                const gill = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.1, 0.06, 24, 1, true), gillMat);
+                gill.position.y = 0.02;
+                group.add(gill);
+
+                // White spots on the cap
+                const spotMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+                [[0, 0.28, 0.18], [-0.22, 0.2, 0.1], [0.2, 0.2, 0.14], [-0.1, 0.32, -0.1], [0.12, 0.3, -0.18]].forEach(([sx, sy, sz]) => {
+                    const spot = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), spotMat);
+                    spot.position.set(sx, sy, sz);
+                    group.add(spot);
+                });
+            } else if (isFlower) {
+                // Stem (slightly curved)
+                const stemMat = new THREE.MeshStandardMaterial({ color: 0x059669, roughness: 0.7 });
+                const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.65, 10), stemMat);
+                stem.position.y = -0.15;
+                stem.castShadow = true;
+                group.add(stem);
+
+                // Leaf
+                const leaf = new THREE.Mesh(createBeveledBox(0.22, 0.08, 0.02, 0.015), stemMat);
+                leaf.position.set(-0.14, -0.25, 0);
+                leaf.rotation.z = 0.4;
+                group.add(leaf);
+
+                // Petals fanned around the center, instead of one flat disc
+                const petalMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(natureColorHex || '#f472b6'), roughness: 0.5 });
+                for (let p = 0; p < 6; p++) {
+                    const angle = (p / 6) * Math.PI * 2;
+                    const petal = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), petalMat);
+                    petal.scale.set(0.55, 1, 0.3);
+                    petal.position.set(Math.cos(angle) * 0.13, 0.2 + Math.abs(Math.sin(angle)) * 0.01, Math.sin(angle) * 0.13);
+                    petal.rotation.z = angle;
+                    petal.castShadow = true;
+                    group.add(petal);
+                }
+                const center = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 16), new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.5 }));
+                center.position.y = 0.2;
+                group.add(center);
+            } else {
+                // --- Tree ---
+                const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.9 });
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.1, 0.55, 12), trunkMat);
+                trunk.position.y = -0.28;
+                trunk.castShadow = true;
+                group.add(trunk);
+
+                // Root flare at the base
+                for (let i = 0; i < 4; i++) {
+                    const angle = (i / 4) * Math.PI * 2;
+                    const root = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.16, 6), trunkMat);
+                    root.position.set(Math.cos(angle) * 0.09, -0.53, Math.sin(angle) * 0.09);
+                    root.rotation.z = Math.cos(angle) * 0.5;
+                    root.rotation.x = Math.sin(angle) * 0.5;
+                    group.add(root);
+                }
+
+                // Layered foliage — several overlapping rounded clumps instead
+                // of one plain sphere, so the canopy reads as a real silhouette.
+                const foliageColor = new THREE.Color(natureColorHex || '#22c55e');
+                const foliageMat = new THREE.MeshStandardMaterial({ color: foliageColor, roughness: 0.85 });
+                const foliageMatLight = new THREE.MeshStandardMaterial({ color: foliageColor.clone().offsetHSL(0, 0, 0.08), roughness: 0.8 });
+                [[0, 0.15, 0, 0.42, foliageMat], [-0.22, 0.05, 0.1, 0.3, foliageMatLight], [0.24, 0.08, -0.08, 0.3, foliageMatLight], [0, 0.42, 0, 0.28, foliageMatLight]]
+                    .forEach(([fx, fy, fz, fr, mat]) => {
+                        const clump = new THREE.Mesh(new THREE.SphereGeometry(fr, 16, 12), mat);
+                        clump.position.set(fx, fy, fz);
+                        clump.castShadow = true;
+                        group.add(clump);
+                    });
+
+                // A few fruit highlights
+                const fruitMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4 });
+                [[0.18, 0.1, 0.28], [-0.24, 0.2, 0.15], [0.05, 0.35, 0.22]].forEach(([px, py, pz]) => {
+                    const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), fruitMat);
+                    fruit.position.set(px, py, pz);
+                    group.add(fruit);
+                });
+            }
+        }
+        else if (prompt.includes('torre') || prompt.includes('tower') || prompt.includes('castillo') || prompt.includes('castle') || prompt.includes('edificio') || prompt.includes('building') || prompt.includes('puerta') || prompt.includes('door') || prompt.includes('muralla') || prompt.includes('wall')) {
+            // --- 3D Tower / Building (previously fell through to the generic gem) ---
+            const stoneMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.85, metalness: 0.05 });
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, roughness: 0.6 });
+
+            // Foundation
+            const base = new THREE.Mesh(createBeveledBox(0.7, 0.15, 0.7, 0.02), stoneMat);
+            base.position.y = -0.55;
+            base.castShadow = true; base.receiveShadow = true;
+            group.add(base);
+
+            // Octagonal tower body — reads as a real turret instead of a plain box
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.9, 8), stoneMat);
+            body.position.y = -0.02;
+            body.castShadow = true;
+            group.add(body);
+
+            // Brick seam rings for surface texture
+            const seamMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 });
+            for (let i = 0; i < 4; i++) {
+                const seam = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.008, 6, 8), seamMat);
+                seam.rotation.x = Math.PI / 2;
+                seam.position.y = -0.35 + i * 0.24;
+                group.add(seam);
+            }
+
+            // Battlements around the top
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const crenel = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.06), stoneMat);
+                crenel.position.set(Math.cos(angle) * 0.33, 0.48, Math.sin(angle) * 0.33);
+                crenel.rotation.y = -angle;
+                group.add(crenel);
+            }
+
+            // Conical roof
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.5, 8), roofMat);
+            roof.position.y = 0.7;
+            roof.castShadow = true;
+            group.add(roof);
+
+            // Arched door
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x3f2a14, roughness: 0.8 });
+            const doorShape = new THREE.Shape();
+            doorShape.moveTo(-0.11, -0.16);
+            doorShape.lineTo(-0.11, 0.05);
+            doorShape.quadraticCurveTo(-0.11, 0.16, 0, 0.16);
+            doorShape.quadraticCurveTo(0.11, 0.16, 0.11, 0.05);
+            doorShape.lineTo(0.11, -0.16);
+            doorShape.closePath();
+            const door = new THREE.Mesh(new THREE.ExtrudeGeometry(doorShape, { depth: 0.04, bevelEnabled: false, curveSegments: 10 }), doorMat);
+            door.position.set(0, -0.5, 0.35);
+            group.add(door);
+
+            // Small arched windows
+            const windowMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xfacc15, emissiveIntensity: 0.5, roughness: 0.5 });
+            [[0.34, 0.1], [-0.34, 0.1]].forEach(([wx, wy]) => {
+                const win = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.12, 8, 1, false, 0, Math.PI), windowMat);
+                win.rotation.z = Math.PI / 2;
+                win.position.set(wx, wy, 0);
+                group.add(win);
+            });
+        }
+        else if (prompt.includes('terreno') || prompt.includes('bloque') || prompt.includes('isometrico') || prompt.includes('isométrico') || prompt.includes('tile') || prompt.includes('suelo') || /\bground\b/.test(prompt) || prompt.includes('cesped') || prompt.includes('césped') || prompt.includes('grass') || prompt.includes('nieve') || prompt.includes('snow') || prompt.includes('lava') || prompt.includes('desierto') || prompt.includes('desert')) {
+            // --- 3D Ground / Floor Tile (previously didn't exist in 3D at all) ---
+            const isSnow = prompt.includes('nieve') || prompt.includes('snow');
+            const isLava = prompt.includes('lava');
+            const isDesert = prompt.includes('desierto') || prompt.includes('desert');
+            const isGrass = !isSnow && !isLava && !isDesert;
+
+            let topColor = 0x4ade80, sideColor = 0x78350f;
+            if (isSnow) { topColor = 0xf8fafc; sideColor = 0x94a3b8; }
+            else if (isLava) { topColor = 0xea580c; sideColor = 0x27272a; }
+            else if (isDesert) { topColor = 0xe9c46a; sideColor = 0xb08968; }
+
+            const topMat = new THREE.MeshStandardMaterial({
+                color: topColor, roughness: isLava ? 0.4 : 0.9,
+                emissive: isLava ? new THREE.Color(0xea580c) : new THREE.Color(0x000000),
+                emissiveIntensity: isLava ? 0.5 : 0
+            });
+            const sideMat = new THREE.MeshStandardMaterial({ color: sideColor, roughness: 0.95 });
+
+            // Isometric-style block with a distinct top face and dirt sides,
+            // instead of one flat-colored cube.
+            const block = new THREE.Mesh(
+                new THREE.BoxGeometry(1.0, 0.32, 1.0),
+                [sideMat, sideMat, topMat, sideMat, sideMat, sideMat]
+            );
+            block.position.y = -0.16;
+            block.castShadow = true; block.receiveShadow = true;
+            group.add(block);
+
+            // Surface detail matching the terrain type
+            if (isGrass) {
+                const bladeMatGrass = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.8 });
+                for (let i = 0; i < 14; i++) {
+                    const gx = (Math.random() - 0.5) * 0.85, gz = (Math.random() - 0.5) * 0.85;
+                    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.015, 0.09, 4), bladeMatGrass);
+                    blade.position.set(gx, 0.03, gz);
+                    blade.rotation.x = (Math.random() - 0.5) * 0.3;
+                    group.add(blade);
+                }
+            } else if (isSnow) {
+                for (let i = 0; i < 10; i++) {
+                    const gx = (Math.random() - 0.5) * 0.85, gz = (Math.random() - 0.5) * 0.85;
+                    const bump = new THREE.Mesh(new THREE.SphereGeometry(0.04 + Math.random() * 0.03, 8, 6), topMat);
+                    bump.position.set(gx, 0.02, gz);
+                    bump.scale.y = 0.5;
+                    group.add(bump);
+                }
+            } else if (isDesert) {
+                const duneMat = new THREE.MeshStandardMaterial({ color: 0xd4a24c, roughness: 0.9 });
+                for (let i = 0; i < 3; i++) {
+                    const gx = (Math.random() - 0.5) * 0.6, gz = (Math.random() - 0.5) * 0.6;
+                    const dune = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), duneMat);
+                    dune.scale.set(1, 0.25, 1);
+                    dune.position.set(gx, 0.02, gz);
+                    group.add(dune);
+                }
+            } else if (isLava) {
+                const crackMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xf59e0b, emissiveIntensity: 1, roughness: 0.3 });
+                [[0.1, 0.2], [-0.15, -0.1], [0.2, -0.2]].forEach(([cx2, cz2]) => {
+                    const crack = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), crackMat);
+                    crack.position.set(cx2, 0.02, cz2);
+                    crack.scale.y = 0.15;
+                    group.add(crack);
+                });
+            }
+        }
         else if (prompt.includes('dog') || prompt.includes('perro') || prompt.includes('cat') || prompt.includes('gato') || prompt.includes('wolf') || prompt.includes('lobo') || prompt.includes('chicken') || prompt.includes('gallina') || prompt.includes('gallo') || prompt.includes('pollo')) {
             const isChicken = prompt.includes('chicken') || prompt.includes('gallina') || prompt.includes('gallo') || prompt.includes('pollo');
             const animalColorHex = document.querySelector('.swatch.selected')?.getAttribute('data-color') || '#c026d3';
@@ -4192,6 +4423,51 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 50);
         }
 
+        else if ((prompt.includes('bosque') || prompt.includes('forest')) &&
+            !prompt.includes('montaña') && !prompt.includes('mountain') && !prompt.includes('mar') && !prompt.includes('sea') &&
+            !prompt.includes('ciudad') && !prompt.includes('city') && !prompt.includes('cueva') && !prompt.includes('cave') &&
+            !prompt.includes('paisaje') && !prompt.includes('landscape') && !prompt.includes('escenario') && !prompt.includes('escena') &&
+            !prompt.includes('scenario') && !prompt.includes('background') && !prompt.includes('fondo')) {
+            // --- 3D Forest patch: grass ground + a cluster of varied trees.
+            // A standalone "bosque"/"forest" gets its own dense cluster; if the
+            // prompt also mentions mountains/city/etc it falls through to the
+            // full scene diorama below instead. ---
+            const ground = new THREE.Mesh(
+                new THREE.CylinderGeometry(1.1, 1.1, 0.1, 32),
+                new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.95 })
+            );
+            ground.position.y = -0.45;
+            ground.receiveShadow = true;
+            group.add(ground);
+
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.9 });
+            const foliageColors = [0x22c55e, 0x16a34a, 0x15803d];
+            const buildTree3D = (px, pz, scale, colorIdx) => {
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * scale, 0.07 * scale, 0.4 * scale, 10), trunkMat);
+                trunk.position.set(px, -0.4 + 0.2 * scale, pz);
+                trunk.castShadow = true;
+                group.add(trunk);
+                const foliageMat = new THREE.MeshStandardMaterial({ color: foliageColors[colorIdx % foliageColors.length], roughness: 0.85 });
+                [[0, 0.55, 0.32], [-0.12, 0.42, 0.24], [0.14, 0.46, 0.24]].forEach(([fx, fy, fr]) => {
+                    const clump = new THREE.Mesh(new THREE.SphereGeometry(fr * scale, 12, 10), foliageMat);
+                    clump.position.set(px + fx * scale, -0.4 + fy * scale, pz);
+                    clump.castShadow = true;
+                    group.add(clump);
+                });
+            };
+
+            const positions = [[-0.55, 1.0, 0.85], [0.5, 0.85, 0.7], [0.0, 0.7, 1.0], [-0.75, 0.75, 0.6], [0.75, 0.65, 0.75], [-0.15, 0.8, 0.55]];
+            positions.forEach(([px, pz, scale], i) => buildTree3D(px, pz, scale, i));
+
+            // Scattered rocks on the forest floor
+            const rockMat = new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 0.9 });
+            [[0.3, 0.55], [-0.4, -0.5]].forEach(([rx, rz]) => {
+                const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.08, 0), rockMat);
+                rock.position.set(rx, -0.4, rz);
+                rock.castShadow = true;
+                group.add(rock);
+            });
+        }
         else if (prompt.includes('escenario') || prompt.includes('escena') || prompt.includes('scenario') || prompt.includes('background') || prompt.includes('fondo') || prompt.includes('paisaje') || prompt.includes('landscape') || prompt.includes('bosque') || prompt.includes('forest') || prompt.includes('cueva') || prompt.includes('cave') || prompt.includes('ciudad') || prompt.includes('city') || prompt.includes('montaña') || prompt.includes('mountain') || prompt.includes('mar') || prompt.includes('sea')) {
             // --- 3D Scene Diorama ---
             

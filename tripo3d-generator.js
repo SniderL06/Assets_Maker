@@ -9,12 +9,19 @@
  *
  * Free tier: 200 credits on sign-up. 1 generation ≈ 1-3 credits.
  * Get your key at: https://platform.tripo3d.ai
+ *
+ * IMPORTANT — this file no longer calls api.tripo3d.ai directly from the
+ * browser. That API doesn't send CORS headers for browser origins, so a
+ * direct fetch() from here gets silently blocked. Instead we call our own
+ * same-origin serverless proxy (/api/tripo3d/create and /api/tripo3d/status,
+ * see those files) which forwards the request server-side. This also means
+ * the key doesn't need to sit exposed in the browser's Network tab.
  */
 
 const Tripo3DGenerator = (() => {
     'use strict';
 
-    const BASE_URL = 'https://api.tripo3d.ai/v2/openapi';
+    const BASE_URL = '/api/tripo3d'; // same-origin proxy, see /api/tripo3d/*.js
     const POLL_INTERVAL_MS = 3000;
     const MAX_POLL_ATTEMPTS = 60; // 3 min max
 
@@ -42,8 +49,6 @@ const Tripo3DGenerator = (() => {
 
     /** Submit a text-to-3D generation task */
     async function submitTask(prompt, styleHint = 'game') {
-        if (!_apiKey) throw new Error('No Tripo3D API key set. Por favor ingresa tu clave en Ajustes 3D IA.');
-
         const styleMap = {
             realistic: 'realistic',
             cartoon:   'cartoon',
@@ -54,31 +59,29 @@ const Tripo3DGenerator = (() => {
         const tripoStyle = styleMap[styleHint] || 'cartoon';
 
         const body = {
-            type: 'text_to_model',
             prompt: prompt,
-            // model_version: 'v2.5-20250123',  // latest available on free tier
-            face_limit: 8000,                    // keep polygon count manageable
+            face_limit: 8000,  // keep polygon count manageable
             texture: true,
             pbr: true,
         };
+        // Only forward a personal key if the user entered one — otherwise
+        // the server-side TRIPO3D_API_KEY env var is used.
+        if (_apiKey) body.apiKey = _apiKey;
 
-        const response = await fetch(`${BASE_URL}/task`, {
+        const response = await fetch(`${BASE_URL}/create`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${_apiKey}`,
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
 
+        const data = await response.json().catch(() => ({}));
+
         if (!response.ok) {
-            const err = await response.text().catch(() => response.status);
-            if (response.status === 401) throw new Error('API key inválida. Verifica tu clave de Tripo3D.');
+            if (response.status === 401) throw new Error(data.error || 'API key inválida o no configurada. Verifica tu clave de Tripo3D o la variable TRIPO3D_API_KEY en Vercel.');
             if (response.status === 402) throw new Error('Sin créditos Tripo3D. Recarga tu cuenta en platform.tripo3d.ai');
-            throw new Error(`Tripo3D error ${response.status}: ${err}`);
+            throw new Error(data.error || `Tripo3D error ${response.status}`);
         }
 
-        const data = await response.json();
         if (!data.data?.task_id) throw new Error('Respuesta inesperada de Tripo3D.');
         return data.data.task_id;
     }
@@ -88,12 +91,12 @@ const Tripo3DGenerator = (() => {
         for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
             await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
 
-            const response = await fetch(`${BASE_URL}/task/${taskId}`, {
-                headers: { 'Authorization': `Bearer ${_apiKey}` }
-            });
+            const qs = new URLSearchParams({ taskId });
+            if (_apiKey) qs.set('apiKey', _apiKey);
+            const response = await fetch(`${BASE_URL}/status?${qs.toString()}`);
 
-            if (!response.ok) throw new Error(`Poll error ${response.status}`);
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || `Poll error ${response.status}`);
             const task = data.data;
 
             const status   = task?.status;

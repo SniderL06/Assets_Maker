@@ -6,10 +6,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Application State ---
     const state = {
         currentWorkspace: '2d', // '2d', '2.5d', '3d'
-        activeTool: 'pan', // 'pan', 'brush', 'eraser', 'picker', 'fill', 'crop'
+        activeTool: 'pan', // 'pan', 'brush', 'eraser', 'picker', 'fill', 'crop', 'magicErase'
         primaryColor: '#a855f7',
         brushSize: 8,
         brushOpacity: 1,
+        bgTolerance: 35, // 0-100, used by the magic-erase tool and auto background removal
         canvasWidth: 256,
         canvasHeight: 256,
         gridVisible: false,
@@ -79,8 +80,17 @@ document.addEventListener('DOMContentLoaded', () => {
         eraser: document.getElementById('tool-eraser'),
         picker: document.getElementById('tool-picker'),
         fill: document.getElementById('tool-fill'),
-        crop: document.getElementById('tool-crop')
+        crop: document.getElementById('tool-crop'),
+        magicErase: document.getElementById('tool-magic-erase')
     };
+
+    // Background transparency controls
+    const bgToleranceSlider = document.getElementById('bg-tolerance');
+    const bgToleranceVal = document.getElementById('bg-tolerance-val');
+    const bgKeyColorInput = document.getElementById('bg-key-color');
+    const bgAutoDetect = document.getElementById('bg-auto-detect');
+    const bgAutoRemoveAfterGen = document.getElementById('auto-remove-bg');
+    const btnRemoveBgNow = document.getElementById('btn-remove-bg-now');
 
     // Crop UI Elements
     const cropBox = document.getElementById('crop-box');
@@ -325,6 +335,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // Background transparency controls
+        if (bgToleranceSlider) {
+            bgToleranceSlider.addEventListener('input', (e) => {
+                state.bgTolerance = parseInt(e.target.value, 10);
+                if (bgToleranceVal) bgToleranceVal.textContent = `${state.bgTolerance}%`;
+            });
+        }
+        if (btnRemoveBgNow) {
+            btnRemoveBgNow.addEventListener('click', () => {
+                const useAuto = bgAutoDetect ? bgAutoDetect.checked : true;
+                const keyColor = useAuto ? detectBackgroundColor() : hexToRgb(bgKeyColorInput?.value || '#ffffff').slice(0, 3);
+                removeBackgroundAuto(keyColor, state.bgTolerance);
+                saveHistoryState();
+                showNotification('🪄 Fondo eliminado según el color detectado/seleccionado.');
+            });
+        }
+
         // Keyboard shortcuts (global)
         document.addEventListener('keydown', (e) => {
             // Skip when typing in an input/textarea
@@ -335,6 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (k === 'e') setTool('eraser');
             else if (k === 'i') setTool('picker');
             else if (k === 'g') setTool('fill');
+            else if (k === 'm') setTool('magicErase');
             else if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); undo(); }
             else if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); }
         });
@@ -912,6 +940,11 @@ document.addEventListener('DOMContentLoaded', () => {
             floodFill(Math.floor(pos.x), Math.floor(pos.y), hexToRgb(state.primaryColor));
             saveHistoryState();
             isDrawing = false;
+        } else if (state.activeTool === 'magicErase') {
+            floodFillTransparent(Math.floor(pos.x), Math.floor(pos.y), state.bgTolerance);
+            updateThreeTexture();
+            saveHistoryState();
+            isDrawing = false;
         }
     }
 
@@ -1035,6 +1068,139 @@ document.addEventListener('DOMContentLoaded', () => {
                Math.abs(c1[1] - c2[1]) < 5 &&
                Math.abs(c1[2] - c2[2]) < 5 &&
                Math.abs(c1[3] - c2[3]) < 5;
+    }
+
+    // ─── BACKGROUND / CHROMA-KEY TRANSPARENCY TOOLS ──────────────────────────
+    // Distance between two RGB colors (0-441ish range for full black vs white)
+    function colorDistanceRGB(r1, g1, b1, r2, g2, b2) {
+        return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
+    }
+
+    // Flood fill starting from (startX, startY) that makes matching pixels
+    // TRANSPARENT instead of filling them with a color. Tolerance is 0-100
+    // (mapped to an RGB distance threshold). Used by the "Varita Mágica"
+    // manual tool so the user can click any leftover background patch and
+    // erase just that connected region (won't eat into the character/asset
+    // unless it's actually connected and within tolerance).
+    function floodFillTransparent(startX, startY, tolerance) {
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        const width = imgData.width;
+        const height = imgData.height;
+        const maxDist = (tolerance / 100) * 441.7; // 441.7 ≈ max possible RGB distance
+
+        const startIdx = (startY * width + startX) * 4;
+        if (startIdx < 0 || startIdx >= data.length) return;
+        const tR = data[startIdx], tG = data[startIdx + 1], tB = data[startIdx + 2];
+
+        const visited = new Uint8Array(width * height);
+        const queue = [[startX, startY]];
+        visited[startY * width + startX] = 1;
+
+        while (queue.length > 0) {
+            const [x, y] = queue.shift();
+            const idx = (y * width + x) * 4;
+            const dist = colorDistanceRGB(data[idx], data[idx + 1], data[idx + 2], tR, tG, tB);
+            if (dist > maxDist) continue;
+
+            data[idx + 3] = 0; // make transparent
+
+            const neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+            for (const [nx, ny] of neighbors) {
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                const nPos = ny * width + nx;
+                if (visited[nPos]) continue;
+                visited[nPos] = 1;
+                queue.push([nx, ny]);
+            }
+        }
+
+        featherAlphaEdges(data, width, height, tR, tG, tB, maxDist);
+        ctx.putImageData(imgData, 0, 0);
+    }
+
+    // Softens the hard cutout edge left by a key-color removal: pixels that
+    // are still opaque but close in color to the removed key color, and
+    // directly touching a transparent pixel, get partial alpha instead of
+    // staying fully opaque. This kills the white/color "halo" fringe that a
+    // plain hard cutout leaves around the subject.
+    function featherAlphaEdges(data, width, height, tR, tG, tB, maxDist) {
+        const featherBand = maxDist * 0.6; // extra soft margin beyond the hard cut
+        const original = new Uint8ClampedArray(data); // read alpha state before feathering
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                if (original[idx + 3] === 0) continue; // already transparent
+                // Check 4-neighborhood for an already-transparent pixel
+                let touchesTransparent = false;
+                if (x > 0 && original[idx - 4 + 3] === 0) touchesTransparent = true;
+                else if (x < width - 1 && original[idx + 4 + 3] === 0) touchesTransparent = true;
+                else if (y > 0 && original[idx - width * 4 + 3] === 0) touchesTransparent = true;
+                else if (y < height - 1 && original[idx + width * 4 + 3] === 0) touchesTransparent = true;
+                if (!touchesTransparent) continue;
+
+                const dist = colorDistanceRGB(data[idx], data[idx + 1], data[idx + 2], tR, tG, tB);
+                if (dist < maxDist + featherBand) {
+                    const t = Math.max(0, Math.min(1, (dist - maxDist) / featherBand)); // 0 at cut edge, 1 at band end
+                    data[idx + 3] = Math.round(255 * t);
+                }
+            }
+        }
+    }
+
+    // Removes the background of the WHOLE canvas by flood-filling from every
+    // border pixel inward (so only the connected background region becomes
+    // transparent — similar colors fully enclosed inside the asset are left
+    // alone). keyColor is [r,g,b]; tolerance is 0-100.
+    function removeBackgroundAuto(keyColor, tolerance) {
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        const width = imgData.width;
+        const height = imgData.height;
+        const maxDist = (tolerance / 100) * 441.7;
+        const [tR, tG, tB] = keyColor;
+
+        const visited = new Uint8Array(width * height);
+        const queue = [];
+        for (let x = 0; x < width; x++) { queue.push([x, 0]); queue.push([x, height - 1]); }
+        for (let y = 0; y < height; y++) { queue.push([0, y]); queue.push([width - 1, y]); }
+        queue.forEach(([x, y]) => { visited[y * width + x] = 1; });
+
+        while (queue.length > 0) {
+            const [x, y] = queue.shift();
+            const idx = (y * width + x) * 4;
+            const dist = colorDistanceRGB(data[idx], data[idx + 1], data[idx + 2], tR, tG, tB);
+            if (dist > maxDist) continue;
+
+            data[idx + 3] = 0;
+
+            const neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+            for (const [nx, ny] of neighbors) {
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                const nPos = ny * width + nx;
+                if (visited[nPos]) continue;
+                visited[nPos] = 1;
+                queue.push([nx, ny]);
+            }
+        }
+
+        featherAlphaEdges(data, width, height, tR, tG, tB, maxDist);
+        ctx.putImageData(imgData, 0, 0);
+        updateThreeTexture();
+    }
+
+    // Samples the four corners of the canvas and averages them — used to
+    // auto-detect what shade of "background" Pollinations actually returned
+    // (pure white, off-white, cream, etc.) instead of assuming #ffffff.
+    function detectBackgroundColor() {
+        const w = canvas.width, h = canvas.height;
+        const corners = [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]];
+        let r = 0, g = 0, b = 0;
+        corners.forEach(([x, y]) => {
+            const d = ctx.getImageData(x, y, 1, 1).data;
+            r += d[0]; g += d[1]; b += d[2];
+        });
+        return [Math.round(r / 4), Math.round(g / 4), Math.round(b / 4)];
     }
 
     // Color conversion helpers
@@ -1195,77 +1361,35 @@ document.addEventListener('DOMContentLoaded', () => {
     // Call during init
     initEngineButtons();
 
-    // ─── TRIPO3D 3D AI INTEGRATION ───────────────────────────────────────────
-    function initTripo3D() {
-        const saveKeyBtn     = document.getElementById('tripo3d-save-key');
-        const keyInput       = document.getElementById('tripo3d-api-key');
-        const keyStatus      = document.getElementById('tripo3d-key-status');
-        const generateBtn    = document.getElementById('tripo3d-generate-btn');
-
-        if (!saveKeyBtn || !keyInput || !generateBtn) return;
-
-        function updateKeyStatus() {
-            if (window.Tripo3DGenerator && Tripo3DGenerator.hasKey()) {
-                if (keyStatus) keyStatus.textContent = '✅ Clave Tripo3D activa — listo para generar 3D real';
-                if (generateBtn) {
-                    generateBtn.style.background = 'rgba(168,85,247,0.2)';
-                    generateBtn.style.borderColor = 'rgba(168,85,247,0.7)';
-                }
-            } else {
-                if (keyStatus) keyStatus.innerHTML = '🔑 Sin clave. Regístrate gratis en <a href="https://platform.tripo3d.ai" target="_blank" style="color:#a78bfa;">platform.tripo3d.ai</a> — 200 créditos gratis.';
-            }
-        }
-
-        // Restore saved key
-        if (window.Tripo3DGenerator) {
-            const saved = Tripo3DGenerator.loadSavedKey();
-            if (saved) {
-                keyInput.value = saved;
-                updateKeyStatus();
-            }
-        }
-
-        saveKeyBtn.addEventListener('click', () => {
-            const key = keyInput.value.trim();
-            if (!key) {
-                showNotification('⚠️ Ingresa una API key válida de Tripo3D');
-                return;
-            }
-            if (window.Tripo3DGenerator) Tripo3DGenerator.setApiKey(key);
-            updateKeyStatus();
-            showNotification('✅ Clave Tripo3D guardada correctamente');
-        });
+    // ─── FREE 3D GENERATION (TripoSR via Hugging Face, no key needed) ───────
+    function initFree3D() {
+        const generateBtn = document.getElementById('tripo3d-generate-btn');
+        if (!generateBtn) return;
 
         generateBtn.addEventListener('click', async () => {
-            if (!window.Tripo3DGenerator || !Tripo3DGenerator.hasKey()) {
-                showNotification('⚠️ Primero guarda tu API key de Tripo3D. Regístrate gratis en platform.tripo3d.ai');
+            if (!window.Free3DGenerator) {
+                showNotification('⚠️ Módulo de generación 3D no disponible.');
                 return;
             }
-            const prompt = promptInput.value.trim();
-            if (!prompt) {
-                showNotification('⚠️ Escribe un prompt para generar el modelo 3D');
+            if (canvas.dataset.hasAsset !== 'true') {
+                showNotification('⚠️ Primero genera o dibuja un asset 2D — la versión 3D se crea a partir de esa imagen.');
                 return;
             }
 
             // Switch to 3D view
             const threeContainer = document.getElementById('three-container');
-            const canvasContainer = document.getElementById('canvas-container');
+            const canvasContainerEl = document.getElementById('canvas-container');
             if (threeContainer) threeContainer.style.display = 'block';
-            if (canvasContainer) canvasContainer.style.display = 'none';
+            if (canvasContainerEl) canvasContainerEl.style.display = 'none';
 
-            const activeStyleOpt = document.querySelector('.style-option.active');
-            const style = activeStyleOpt ? activeStyleOpt.getAttribute('data-style') : 'cartoon';
-
-            showLoader('🎲 Tripo3D — Generando modelo 3D real...', 'Enviando prompt a la nube...');
-            updateLoaderProgress(5, 'Conectando con Tripo3D...');
+            showLoader('🎲 Generando modelo 3D real (gratis)...', 'Conectando con TripoSR (Hugging Face)...');
+            updateLoaderProgress(5, 'Conectando...');
 
             try {
-                const { model } = await Tripo3DGenerator.generateAndLoad(prompt, {
-                    styleHint: style,
+                const { model } = await Free3DGenerator.generateAndLoad(canvas, {
                     onProgress: (pct, msg) => updateLoaderProgress(pct, msg)
                 });
 
-                // Remove existing mesh and add the new GLB model
                 if (currentMesh) scene.remove(currentMesh);
                 currentMesh = model;
                 scene.add(currentMesh);
@@ -1273,16 +1397,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 orbitControls.update();
 
                 hideLoader();
-                showNotification('🎲 Modelo 3D real generado por Tripo3D. ¡Puedes rotarlo con el ratón!');
+                showNotification('🎲 Modelo 3D generado gratis con TripoSR. ¡Puedes rotarlo con el ratón!');
 
             } catch (err) {
                 hideLoader();
-                console.error('[Tripo3D] Error:', err);
-                showNotification(`⚠️ Tripo3D: ${err.message.slice(0, 100)}`);
+                console.error('[Free3D] Error:', err);
+                showNotification(`⚠️ Generación 3D: ${err.message.slice(0, 120)}`);
             }
         });
     }
-    initTripo3D();
+    initFree3D();
 
     async function triggerAIGenerate() {
         const prompt = promptInput.value.trim();
@@ -1308,6 +1432,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (statusDot)  { statusDot.style.background = '#f59e0b'; }
             if (statusText) { statusText.textContent = 'Generando imagen...'; }
 
+            // Ask Pollinations for a flat, single-color backdrop so it can be
+            // reliably chroma-keyed afterwards (diffusion models can't output
+            // an alpha channel, so we key it out ourselves client-side).
+            const wantsTransparent = bgAutoRemoveAfterGen ? bgAutoRemoveAfterGen.checked : true;
+            const useAutoDetect = bgAutoDetect ? bgAutoDetect.checked : true;
+            const requestedBgHex = bgKeyColorInput?.value || '#ffffff';
+
             try {
                 const result = await PollinationsGenerator.generate({
                     prompt,
@@ -1316,6 +1447,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     width: Math.max(resolution, 512),
                     height: Math.max(resolution, 512),
                     guidanceScale,
+                    bgColor: wantsTransparent ? requestedBgHex : null,
                     onProgress: (pct, msg) => updateLoaderProgress(pct, msg)
                 });
 
@@ -1327,6 +1459,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.imageSmoothingEnabled = true;
                     ctx.imageSmoothingQuality = 'high';
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    // Auto chroma-key the background out
+                    if (wantsTransparent) {
+                        const keyColor = useAutoDetect ? detectBackgroundColor() : hexToRgb(requestedBgHex).slice(0, 3);
+                        removeBackgroundAuto(keyColor, state.bgTolerance);
+                    }
+
                     updateThreeTexture();
                     hideLoader();
                     saveHistoryState();

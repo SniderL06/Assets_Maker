@@ -42,9 +42,36 @@ const PollinationsGenerator = (() => {
         voxel: ', voxel art, isometric, 3D pixel, low poly, minecraft style, cuboid, game asset',
     };
 
-    function buildPrompt(userPrompt, style, negativePrompt) {
+    // Rough hex -> descriptive color name mapping so the prompt reads
+    // naturally ("solid white background") instead of a raw hex code, which
+    // diffusion models tend to ignore or misinterpret.
+    function describeHexColor(hex) {
+        if (!hex) return 'white';
+        const h = hex.replace('#', '').toLowerCase();
+        const map = {
+            ffffff: 'pure white', '000000': 'pure black',
+            '00ff00': 'chroma key green', '0f0': 'chroma key green',
+            ff00ff: 'chroma key magenta', f0f: 'chroma key magenta',
+            '00ffff': 'cyan',
+        };
+        if (map[h]) return map[h];
+        // Fallback: parse RGB and describe roughly
+        const r = parseInt(h.substring(0, 2), 16) || 0;
+        const g = parseInt(h.substring(2, 4), 16) || 0;
+        const b = parseInt(h.substring(4, 6), 16) || 0;
+        if (r > 235 && g > 235 && b > 235) return 'pure white';
+        if (r < 20 && g < 20 && b < 20) return 'pure black';
+        return `solid flat color (RGB ${r},${g},${b})`;
+    }
+
+    function buildPrompt(userPrompt, style, negativePrompt, bgColor) {
         const styleTag = STYLE_PROMPT_SUFFIX[style] || STYLE_PROMPT_SUFFIX.realistic;
-        let enhanced = `${userPrompt}, game asset, isolated on plain background, centered composition, high detail${styleTag}`;
+        const bgDescription = bgColor ? describeHexColor(bgColor) : 'plain';
+        // Being explicit about a SINGLE, FLAT, SHADOWLESS backdrop is what
+        // actually matters for chroma-keying afterwards — a vague "isolated
+        // on plain background" often still gets soft gradients/shadows that
+        // don't key out cleanly.
+        let enhanced = `${userPrompt}, game asset, centered composition, high detail${styleTag}, isolated on a single solid ${bgDescription} background, flat uniform background color, no gradient, no shadow on background, no texture on background, studio product shot lighting`;
         if (negativePrompt) {
             // Pollinations has no dedicated negative-prompt parameter, so we
             // fold it into the text prompt as a soft hint instead.
@@ -62,9 +89,9 @@ const PollinationsGenerator = (() => {
      * Returns { dataUrl, modelUsed } on success, throws on failure.
      * onProgress(percent, statusText) is called during the attempt.
      */
-    async function generate({ prompt, style = 'realistic', negativePrompt = '', width = 512, height = 512, seed = null, onProgress = null }) {
+    async function generate({ prompt, style = 'realistic', negativePrompt = '', width = 512, height = 512, seed = null, bgColor = null, onProgress = null }) {
         const model = STYLE_MODEL_MAP[style] || 'flux';
-        const enhancedPrompt = buildPrompt(prompt, style, negativePrompt);
+        const enhancedPrompt = buildPrompt(prompt, style, negativePrompt, bgColor);
 
         const params = new URLSearchParams({
             model,

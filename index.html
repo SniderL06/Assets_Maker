@@ -15,14 +15,14 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <!-- Simple OBJ Exporter for 3D export -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
-    <!-- GLTFLoader for Tripo3D model loading -->
+    <!-- GLTFLoader for loading generated 3D models -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <!-- Realistic Character System -->
     <script src="realistic-character.js"></script>
     <!-- AI Image Generator (Pollinations.ai — no API key required) -->
     <script src="pollinations-generator.js"></script>
-    <!-- Tripo3D 3D AI Generator -->
-    <script src="tripo3d-generator.js"></script>
+    <!-- Free Image-to-3D Generator (TripoSR via Hugging Face — no API key required) -->
+    <script src="free3d-generator.js"></script>
     <!-- Style Sheet -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -137,20 +137,35 @@
                         </div>
                     </div>
 
-                    <!-- ═══ TRIPO3D — 3D IA SECTION ═══ -->
+                    <!-- ═══ TRANSPARENCIA DE FONDO (recorte por color) ═══ -->
                     <div class="form-group" style="border-top: 1px solid rgba(168,85,247,0.15); padding-top: 12px; margin-top: 4px;">
-                        <label style="color: #a78bfa; font-weight: 600;">🎲 Generación 3D con IA (Tripo3D)</label>
-                        <div id="tripo3d-key-area" style="margin-top: 6px;">
-                            <div style="display: flex; gap: 6px; align-items: center;">
-                                <input type="password" id="tripo3d-api-key" placeholder="tu_api_key_de_tripo3d" class="form-control" style="flex: 1; font-size: 0.75rem; padding: 5px 8px;" />
-                                <button type="button" id="tripo3d-save-key" class="btn btn-secondary btn-sm" style="white-space: nowrap; padding: 5px 10px; font-size: 0.72rem;">💾 Guardar</button>
+                        <label style="color: #a78bfa; font-weight: 600;">🪄 Transparencia de Fondo</label>
+                        <div style="font-size: 0.68rem; color: var(--text-muted); margin: 4px 0 8px; line-height: 1.4;">
+                            Pollinations no genera canal alfa, así que recortamos el fondo por color después. Ajusta la tolerancia arriba si queda un halo o si borra partes del personaje.
+                        </div>
+                        <label class="acc-toggle"><input type="checkbox" id="auto-remove-bg" checked> Quitar fondo automáticamente al generar</label>
+                        <label class="acc-toggle"><input type="checkbox" id="bg-auto-detect" checked> Detectar color de fondo automáticamente</label>
+                        <div class="form-row" style="margin-top: 6px;">
+                            <div class="form-group half">
+                                <label for="bg-key-color">Color a eliminar (si no es automático)</label>
+                                <div class="color-picker-wrapper" style="width:100%;height:34px;border-radius:6px;">
+                                    <input type="color" id="bg-key-color" value="#ffffff" style="width:100%;height:100%;">
+                                </div>
                             </div>
-                            <div style="margin-top: 5px; font-size: 0.68rem; color: var(--text-muted); line-height: 1.4;">
-                                <span id="tripo3d-key-status">🔑 Sin clave. Regístrate gratis en </span><a href="https://platform.tripo3d.ai" target="_blank" style="color: #a78bfa;">platform.tripo3d.ai</a> — 200 créditos gratis.
+                            <div class="form-group half" style="display:flex;align-items:flex-end;">
+                                <button type="button" id="btn-remove-bg-now" class="btn btn-secondary btn-sm" style="width:100%;padding:8px;font-size:0.75rem;">🪄 Quitar Fondo Ahora</button>
                             </div>
                         </div>
-                        <button type="button" id="tripo3d-generate-btn" class="btn btn-secondary btn-sm" style="margin-top: 8px; width: 100%; padding: 8px; font-size: 0.8rem; border: 1px solid rgba(168,85,247,0.4); color: #c4b5fd;" title="Genera un modelo 3D real con IA Tripo3D">
-                            🎲 Generar Modelo 3D Real con IA
+                    </div>
+
+                    <!-- ═══ GENERACIÓN 3D GRATIS (TripoSR vía Hugging Face) ═══ -->
+                    <div class="form-group" style="border-top: 1px solid rgba(168,85,247,0.15); padding-top: 12px; margin-top: 4px;">
+                        <label style="color: #a78bfa; font-weight: 600;">🎲 Convertir tu Asset 2D en 3D (100% Gratis)</label>
+                        <div style="margin-top: 6px; font-size: 0.68rem; color: var(--text-muted); line-height: 1.4;">
+                            Usa el modelo open-source <strong>TripoSR</strong> a través de un Space público de Hugging Face — sin API key, sin registro. Convierte la imagen 2D que ya tienes en el lienzo (con fondo transparente) en un modelo 3D real. Puede tardar 20-90s y tiene un límite diario gratuito de la infraestructura compartida.
+                        </div>
+                        <button type="button" id="tripo3d-generate-btn" class="btn btn-secondary btn-sm" style="margin-top: 8px; width: 100%; padding: 8px; font-size: 0.8rem; border: 1px solid rgba(168,85,247,0.4); color: #c4b5fd;" title="Convierte el asset 2D actual del lienzo en un modelo 3D real, gratis">
+                            🎲 Generar Modelo 3D Real (Gratis)
                         </button>
                     </div>
 
@@ -218,6 +233,9 @@
                         <button class="tool-btn" id="tool-fill" title="Cubeta de Pintura (G)">
                             <i data-lucide="paint-bucket"></i>
                         </button>
+                        <button class="tool-btn" id="tool-magic-erase" title="Varita Mágica Transparente — clic para volver transparente una zona conectada (M)">
+                            <i data-lucide="wand-2"></i>
+                        </button>
                         <button class="tool-btn" id="tool-crop" title="Recortar Lienzo">
                             <i data-lucide="crop"></i>
                         </button>
@@ -260,6 +278,11 @@
                             <i data-lucide="droplets" class="size-icon-small"></i>
                             <input type="range" id="brush-opacity" min="1" max="100" value="100">
                             <span id="brush-opacity-val">100%</span>
+                        </div>
+                        <div class="brush-size-control" title="Tolerancia de la Varita Mágica / recorte de fondo: qué tan parecido debe ser el color para volverse transparente">
+                            <i data-lucide="wand-2" class="size-icon-small"></i>
+                            <input type="range" id="bg-tolerance" min="0" max="100" value="35">
+                            <span id="bg-tolerance-val">35%</span>
                         </div>
                     </div>
 

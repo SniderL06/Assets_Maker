@@ -3,10 +3,14 @@
  * HuggingFace Inference API integration for Assets_Maker.AI
  * Supports multiple tokens with automatic rotation and retry logic.
  *
- * Models used:
- *  - Primary: stabilityai/stable-diffusion-xl-base-1.0  (SDXL - best quality)
- *  - Fallback: black-forest-labs/FLUX.1-schnell         (Fast high quality)
- *  - Fallback2: stabilityai/stable-diffusion-2-1        (Always available)
+ * IMPORTANT (2026): Hugging Face's own free "hf-inference" provider now mostly
+ * serves small CPU models (embeddings, classification, tiny LLMs) — it does
+ * NOT serve big image models like SDXL/FLUX anymore. Image generation is
+ * served by third-party "Inference Providers" (fal-ai, Together, Replicate,
+ * etc.) behind the same router, and WHICH provider serves a given model
+ * changes over time. So instead of hardcoding a provider name (which breaks
+ * whenever HF's provider lineup changes), we ask the Hub API which provider
+ * currently serves each model before calling it.
  */
 
 const HFGenerator = (() => {
@@ -32,28 +36,51 @@ const HFGenerator = (() => {
         return token;
     }
 
-    // --- Model Endpoints ---
-    const MODELS = [
-        // FLUX.1-schnell — fast, very high quality, runs well on free tier
-        'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell',
-        // SDXL — top quality
-        'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0',
-        // SD 2.1 — reliable fallback
-        'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-2-1',
-        // Anything v4 — great for game art / anime style
-        'https://router.huggingface.co/hf-inference/models/xyn-ai/anything-v4.0',
-        // Dreamshaper — great for characters
-        'https://router.huggingface.co/hf-inference/models/Lykon/dreamshaper-8',
+    // --- Candidate models, tried in this order regardless of style ---
+    // (style-specialized community checkpoints like anything-v4/dreamshaper
+    // are no longer reliably served by any provider through the free router,
+    // so we stick to actively-maintained models that Inference Providers do
+    // carry as of 2026.)
+    const MODEL_IDS = [
+        'black-forest-labs/FLUX.1-schnell',
+        'black-forest-labs/FLUX.1-dev',
+        'stabilityai/stable-diffusion-3.5-large-turbo',
+        'stabilityai/stable-diffusion-xl-base-1.0',
     ];
 
-    // Style→model preference mapping
-    const STYLE_MODEL_MAP = {
-        pixel:    [2, 3, 4],   // SD2.1 + Anything + Dreamshaper work well for pixel
-        vector:   [1, 0, 2],   // SDXL best for vector/clean art
-        cartoon:  [3, 4, 0],   // Anything + Dreamshaper for cartoon/anime
-        realistic:[0, 1, 2],   // FLUX first, SDXL second for realistic
-        voxel:    [2, 4, 1],   // SD2.1 + Dreamshaper for voxel art
-    };
+    // Cache of resolved providers so we don't re-query the Hub API on every
+    // single generation for the same model.
+    const providerCache = new Map();
+
+    /**
+     * Ask the HF Hub API which Inference Provider currently serves this
+     * model for the text-to-image task, and return its provider id
+     * (e.g. "fal-ai"). Throws if nothing currently serves it.
+     */
+    async function resolveProvider(modelId, token) {
+        if (providerCache.has(modelId)) return providerCache.get(modelId);
+
+        const infoUrl = `https://huggingface.co/api/models/${modelId}?expand[]=inferenceProviderMapping`;
+        const res = await fetch(infoUrl, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (!res.ok) {
+            throw new Error(`No se pudo consultar proveedores para ${modelId}: ${res.status}`);
+        }
+        const data = await res.json();
+        const mapping = data.inferenceProviderMapping || {};
+
+        // Prefer a provider whose status is "live" for the text-to-image task.
+        const entries = Object.entries(mapping);
+        const live = entries.find(([, info]) => (info.status === 'live') && (!info.task || info.task === 'text-to-image'));
+        const chosen = live || entries[0];
+        if (!chosen) {
+            throw new Error(`Ningún proveedor sirve actualmente ${modelId} (puede haber sido retirado)`);
+        }
+
+        providerCache.set(modelId, chosen[0]);
+        return chosen[0];
+    }
 
     // --- Style → prompt enhancement ---
     const STYLE_PROMPT_SUFFIX = {
@@ -77,10 +104,18 @@ const HFGenerator = (() => {
     }
 
     /**
-     * Call a single HF inference endpoint
+     * Call a single HF inference endpoint (after resolving its live provider)
      * Returns a Blob (image) or throws on error.
      */
-    async function callModel(modelUrl, positivePrompt, negativePrompt, width, height, guidanceScale, token) {
+    async function callModel(modelId, positivePrompt, negativePrompt, width, height, guidanceScale, token) {
+        let provider;
+        try {
+            provider = await resolveProvider(modelId, token);
+        } catch (resolveErr) {
+            throw new Error(`No disponible: ${resolveErr.message}`);
+        }
+
+        const modelUrl = `https://router.huggingface.co/${provider}/models/${modelId}`;
         const body = {
             inputs: positivePrompt,
             parameters: {
@@ -114,6 +149,19 @@ const HFGenerator = (() => {
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
+            // Surface billing/permission problems distinctly from "not supported"
+            if (response.status === 402) {
+                throw new Error(`Pago requerido (402) en el proveedor "${provider}": necesitas créditos/facturación activados en huggingface.co/settings/inference-providers`);
+            }
+            if (response.status === 403) {
+                throw new Error(`Sin permiso (403) en el proveedor "${provider}": revisa que el token tenga el permiso "Make calls to Inference Providers"`);
+            }
+            // A provider we thought was "live" can still reject the request — drop
+            // it from the cache so the next attempt re-resolves instead of retrying
+            // the same dead combination.
+            if (response.status === 400 || response.status === 404) {
+                providerCache.delete(modelId);
+            }
             throw new Error(`Model error ${response.status}: ${errorText.slice(0, 200)}`);
         }
 
@@ -134,47 +182,44 @@ const HFGenerator = (() => {
     async function generate({ prompt, style = 'realistic', negativePrompt = '', width = 512, height = 512, guidanceScale = 7.5, onProgress = null }) {
         const { positive, negative } = buildPrompt(prompt, style, negativePrompt);
 
-        const modelOrder = STYLE_MODEL_MAP[style] || STYLE_MODEL_MAP.realistic;
         let lastError = null;
 
-        for (let mi = 0; mi < modelOrder.length; mi++) {
-            const modelIdx = modelOrder[mi];
-            const modelUrl = MODELS[modelIdx];
-            const modelName = modelUrl.split('/models/')[1];
+        for (let mi = 0; mi < MODEL_IDS.length; mi++) {
+            const modelId = MODEL_IDS[mi];
 
             // Try up to 3 different tokens per model
             for (let ti = 0; ti < Math.min(3, TOKENS.length); ti++) {
                 const token = getNextToken();
 
                 if (onProgress) onProgress(
-                    Math.round(10 + (mi * 30) + (ti * 5)),
-                    `Intentando ${modelName} (token ${ti + 1})...`
+                    Math.round(10 + (mi * 20) + (ti * 5)),
+                    `Intentando ${modelId} (token ${ti + 1})...`
                 );
 
                 try {
-                    const blob = await callModel(modelUrl, positive, negative, width, height, guidanceScale, token);
+                    const blob = await callModel(modelId, positive, negative, width, height, guidanceScale, token);
                     const dataUrl = await blobToDataUrl(blob);
 
                     if (onProgress) onProgress(100, '¡Imagen generada con éxito!');
-                    return { dataUrl, modelUsed: modelName };
+                    return { dataUrl, modelUsed: modelId };
                 } catch (err) {
                     lastError = err;
-                    console.warn(`[HFGenerator] ${modelName} failed with token ${ti}: ${err.message}`);
+                    console.warn(`[HFGenerator] ${modelId} failed with token ${ti}: ${err.message}`);
 
                     // If rate limited (429), rotate token; if model loading (503), wait briefly
                     if (err.message.includes('503')) {
                         if (onProgress) onProgress(
-                            Math.round(15 + (mi * 25)),
+                            Math.round(15 + (mi * 20)),
                             `Modelo cargando, esperando...`
                         );
                         await sleep(5000);
                     } else if (err.message.includes('429')) {
                         // Rate limit — try next token immediately
                         continue;
-                    } else if (err.message.includes('timeout') || err.message.includes('aborted')) {
+                    } else if (err.message.includes('timeout') || err.message.includes('aborted') || err.message.includes('No disponible')) {
                         if (onProgress) onProgress(
-                            Math.round(20 + (mi * 25)),
-                            'Tiempo de espera agotado, probando otro modelo...'
+                            Math.round(20 + (mi * 20)),
+                            'Modelo no disponible, probando otro...'
                         );
                         break; // Try next model
                     }
@@ -199,7 +244,7 @@ const HFGenerator = (() => {
     }
 
     // Public API
-    return { generate, MODELS, TOKENS };
+    return { generate, MODEL_IDS, TOKENS };
 })();
 
 // Make globally available

@@ -1169,7 +1169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- AI Generator Simulation Engine ---
-    // Engine state — 'advanced' uses HuggingFace API; 'procedural' uses local canvas art
+    // Engine state — 'advanced' uses Pollinations.ai; 'procedural' uses local canvas art
     let selectedEngine = 'advanced'; // default to HF
 
     function initEngineButtons() {
@@ -1291,16 +1291,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (selectedEngine === 'advanced' && (window.PollinationsGenerator || window.HFGenerator)) {
-            // ---- Real Image Generation: Pollinations first (no API key needed),
-            // HuggingFace as a fallback, procedural art as the last resort. ----
+        if (selectedEngine === 'advanced' && window.PollinationsGenerator) {
+            // ---- Real Image Generation via Pollinations.ai (no API key needed) ----
             const activeStyleOpt = document.querySelector('.style-option.active');
             const style = activeStyleOpt ? activeStyleOpt.getAttribute('data-style') : 'realistic';
             const negativePrompt = document.getElementById('negative-prompt')?.value?.trim() || '';
             const guidanceScale  = parseFloat(document.getElementById('ai-guidance')?.value || '7.5');
             const resolution     = parseInt(document.getElementById('res-select')?.value || '512');
 
-            showLoader('🧠 IA Avanzada — Generando imagen...', 'Conectando con Pollinations...');
+            showLoader('🧠 IA Avanzada — Generando con Pollinations...', 'Conectando con Pollinations...');
             updateLoaderProgress(5, 'Enviando prompt...');
 
             // Update status dot
@@ -1309,79 +1308,55 @@ document.addEventListener('DOMContentLoaded', () => {
             if (statusDot)  { statusDot.style.background = '#f59e0b'; }
             if (statusText) { statusText.textContent = 'Generando imagen...'; }
 
-            const genParams = {
-                prompt,
-                style,
-                negativePrompt,
-                width: Math.max(resolution, 512),
-                height: Math.max(resolution, 512),
-                guidanceScale,
-                onProgress: (pct, msg) => updateLoaderProgress(pct, msg)
-            };
+            try {
+                const result = await PollinationsGenerator.generate({
+                    prompt,
+                    style,
+                    negativePrompt,
+                    width: Math.max(resolution, 512),
+                    height: Math.max(resolution, 512),
+                    guidanceScale,
+                    onProgress: (pct, msg) => updateLoaderProgress(pct, msg)
+                });
 
-            let result = null;
-            let usedFallback = false;
-
-            if (window.PollinationsGenerator) {
-                try {
-                    result = await PollinationsGenerator.generate(genParams);
-                } catch (err) {
-                    console.warn('[Pollinations] Generation failed, trying HuggingFace fallback:', err);
-                }
-            }
-
-            if (!result && window.HFGenerator) {
-                usedFallback = true;
-                updateLoaderProgress(10, 'Pollinations no disponible, probando HuggingFace...');
-                try {
-                    result = await HFGenerator.generate(genParams);
-                } catch (err) {
-                    console.error('[HFGenerator] Generation failed:', err);
-                    if (statusDot)  { statusDot.style.background = '#ef4444'; }
-                    if (statusText) { statusText.textContent = `Error: ${err.message.slice(0, 60)}`; }
+                // Load the generated image onto the canvas
+                const img = new Image();
+                img.onload = () => {
+                    canvas.dataset.hasAsset = 'true';
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    updateThreeTexture();
                     hideLoader();
-                    showNotification(`⚠️ Ambos generadores fallaron: ${err.message.slice(0, 80)}. Usando arte procedural.`);
+                    saveHistoryState();
+
+                    // Also auto-update 3D view
+                    if (style === 'realistic' || style === 'vector' || style === 'cartoon') {
+                        threeMeshSelect.value = 'mesh_3d';
+                        updateThreeMesh('mesh_3d');
+                    }
+
+                    if (statusDot)  { statusDot.style.background = '#22c55e'; }
+                    if (statusText) { statusText.textContent = `✓ Modelo: ${result.modelUsed}`; }
+
+                    showNotification(`✨ Imagen generada por ${result.modelUsed}`);
+                };
+                img.onerror = () => {
+                    hideLoader();
+                    showNotification('⚠️ Error cargando imagen. Usando generación procedural.');
                     fallbackToProcedural(prompt);
-                    return;
-                }
-            }
+                };
+                img.src = result.dataUrl;
 
-            if (!result) {
+            } catch (err) {
+                console.error('[Pollinations] Generation failed:', err);
+                if (statusDot)  { statusDot.style.background = '#ef4444'; }
+                if (statusText) { statusText.textContent = `Error: ${err.message.slice(0, 60)}`; }
                 hideLoader();
-                showNotification('⚠️ No hay generador de imágenes disponible. Usando arte procedural.');
+                showNotification(`⚠️ Pollinations falló: ${err.message.slice(0, 80)}. Usando arte procedural.`);
                 fallbackToProcedural(prompt);
-                return;
             }
-
-            // Load the generated image onto the canvas
-            const img = new Image();
-            img.onload = () => {
-                canvas.dataset.hasAsset = 'true';
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                updateThreeTexture();
-                hideLoader();
-                saveHistoryState();
-
-                // Also auto-update 3D view
-                if (style === 'realistic' || style === 'vector' || style === 'cartoon') {
-                    threeMeshSelect.value = 'mesh_3d';
-                    updateThreeMesh('mesh_3d');
-                }
-
-                if (statusDot)  { statusDot.style.background = '#22c55e'; }
-                if (statusText) { statusText.textContent = `✓ Modelo: ${result.modelUsed}`; }
-
-                showNotification(`✨ Imagen generada por ${result.modelUsed}${usedFallback ? ' (respaldo HuggingFace)' : ''}`);
-            };
-            img.onerror = () => {
-                hideLoader();
-                showNotification('⚠️ Error cargando imagen. Usando generación procedural.');
-                fallbackToProcedural(prompt);
-            };
-            img.src = result.dataUrl;
 
         } else {
             // ---- Procedural (local) generation ----

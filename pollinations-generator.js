@@ -2,7 +2,8 @@
  * pollinations-generator.js
  * Pollinations.ai integration for Assets_Maker.AI
  *
- * Why this instead of (or before) HuggingFace:
+ * Why Pollinations (HuggingFace was removed — its free image-generation
+ * tier became unreliable/discontinued for this use case):
  *  - No API key / no secret required for the anonymous tier, so nothing to
  *    leak in client-side code. Auth is just a "referrer" hint, which is
  *    public by design.

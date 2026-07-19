@@ -19,9 +19,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <!-- Realistic Character System -->
     <script src="realistic-character.js"></script>
-    <!-- HuggingFace AI Generator -->
+    <!-- AI Image Generator (Pollinations.ai — no API key required) -->
     <script src="pollinations-generator.js"></script>
-    <script src="hf-generator.js"></script>
     <!-- Tripo3D 3D AI Generator -->
     <script src="tripo3d-generator.js"></script>
     <!-- Style Sheet -->
@@ -129,12 +128,12 @@
                         <label>Motor de Generación 2D</label>
                         <div style="display: flex; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 8px; border: 1px solid var(--border-color); gap: 4px;">
                             <button type="button" id="engine-procedural" class="btn btn-secondary btn-sm" style="flex: 1; padding: 6px; font-size: 0.72rem; border-radius: 6px;" title="Generación instantánea local">⚡ Procedural</button>
-                            <button type="button" id="engine-advanced" class="btn btn-accent btn-sm active" style="flex: 1; padding: 6px; font-size: 0.72rem; border-radius: 6px;" title="Stable Diffusion XL en la nube">🧠 HuggingFace</button>
+                            <button type="button" id="engine-advanced" class="btn btn-accent btn-sm active" style="flex: 1; padding: 6px; font-size: 0.72rem; border-radius: 6px;" title="Pollinations.ai en la nube">🧠 IA (Pollinations)</button>
                         </div>
-                        <!-- HF Status indicator -->
+                        <!-- Generator status indicator -->
                         <div id="hf-status-bar" style="margin-top: 6px; padding: 6px 10px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.2); border-radius: 6px; font-size: 0.7rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
                             <span id="hf-status-dot" style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block; flex-shrink: 0;"></span>
-                            <span id="hf-status-text">10 tokens HF · FLUX.1-schnell + SDXL (requiere conexión)</span>
+                            <span id="hf-status-text">Pollinations.ai · flux/turbo · sin API key (requiere conexión)</span>
                         </div>
                     </div>
 

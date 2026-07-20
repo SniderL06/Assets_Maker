@@ -63,6 +63,22 @@ const Free3DGenerator = (() => {
         return _connectedClientPromise;
     }
 
+    /**
+     * Wraps a promise so that instead of hanging forever if the ZeroGPU
+     * queue stalls (quota exhausted, Space overloaded, dropped connection),
+     * it rejects with a clear, actionable error after `ms` milliseconds.
+     * Without this, client.predict() can sit unresolved indefinitely with
+     * no network activity and no console error — exactly the "stuck at
+     * 50%" symptom this fixes.
+     */
+    function withTimeout(promise, ms, timeoutMessage) {
+        let timer;
+        const timeout = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+        });
+        return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+    }
+
     /** Turns the current 2D canvas into a PNG Blob/File for upload. */
     function canvasToFile(canvas) {
         return new Promise((resolve, reject) => {
@@ -97,20 +113,28 @@ const Free3DGenerator = (() => {
         // ("No value provided for required parameter: undefined"). El orden
         // debe coincidir exactamente con la firma real en app.py:
         // def preprocess(input_image, do_remove_background, foreground_ratio)
-        const preprocessResult = await client.predict('/preprocess', [
-            imageFile,
-            false, // do_remove_background
-            0.9,   // foreground_ratio
-        ]);
+        const preprocessResult = await withTimeout(
+            client.predict('/preprocess', [
+                imageFile,
+                false, // do_remove_background
+                0.9,   // foreground_ratio
+            ]),
+            45000,
+            'TripoSR no respondió al preprocesar la imagen en 45s. El Space puede estar saturado o haberse cerrado la cola silenciosamente — intenta de nuevo en unos minutos, o revisa https://huggingface.co/spaces/stabilityai/TripoSR directamente.'
+        );
         const processedImage = preprocessResult?.data?.[0];
         if (!processedImage) throw new Error('TripoSR no devolvió una imagen preprocesada.');
 
         if (onProgress) onProgress(50, 'Generando malla 3D (puede tardar 20-90s)...');
         // def generate(image, mc_resolution, formats=["obj", "glb"])
-        const generateResult = await client.predict('/generate', [
-            processedImage,
-            256, // mc_resolution
-        ]);
+        const generateResult = await withTimeout(
+            client.predict('/generate', [
+                processedImage,
+                256, // mc_resolution
+            ]),
+            120000,
+            'TripoSR no terminó de generar la malla 3D en 2 minutos. Esto casi siempre significa que se agotó la cuota gratuita diaria de GPU (ZeroGPU) para visitantes anónimos, o que el Space está muy saturado ahora mismo. Prueba de nuevo más tarde, o entra a https://huggingface.co/spaces/stabilityai/TripoSR para comprobar el estado del Space.'
+        );
         // outputs=[output_model_obj, output_model_glb] in that order
         const glbFile = generateResult?.data?.[1];
         const glbUrl = glbFile?.url || glbFile?.path;

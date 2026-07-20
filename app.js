@@ -1538,7 +1538,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Auto chroma-key the background out
                     if (wantsTransparent) {
                         const keyColor = useAutoDetect ? detectBackgroundColor() : hexToRgb(requestedBgHex).slice(0, 3);
-                        removeBackgroundAuto(keyColor, state.bgTolerance);
+
+                        // Sanity check: we asked Pollinations for a bright,
+                        // evenly-lit backdrop regardless of the subject's
+                        // mood. If the sampled corner color still comes out
+                        // dark (low luminance), the model likely ignored
+                        // that instruction and rendered a shadowed/near-black
+                        // backdrop instead — which is a serious risk for
+                        // dark-colored subjects (black fur, dark armor,
+                        // etc.), since a dark backdrop and dark subject
+                        // colors can become indistinguishable by color alone
+                        // and the auto-removal can eat large chunks of the
+                        // subject. In that case, cut the tolerance down
+                        // significantly (safer, smaller erasure that the
+                        // user can finish manually) and let them know.
+                        const [kr, kg, kb] = keyColor;
+                        const luminance = 0.299 * kr + 0.587 * kg + 0.114 * kb;
+                        const backdropLooksDark = luminance < 90;
+                        const effectiveTolerance = backdropLooksDark
+                            ? Math.min(state.bgTolerance, 12)
+                            : state.bgTolerance;
+
+                        removeBackgroundAuto(keyColor, effectiveTolerance);
+
+                        if (backdropLooksDark && typeof showNotification === 'function') {
+                            showNotification('El fondo generado salió más oscuro de lo esperado (puede pasar con personajes de tono oscuro/dramático). Reduje el recorte automático para no comerme el sujeto — usa la "Varita Mágica" para limpiar el fondo restante a mano.');
+                        }
                     }
 
                     updateThreeTexture();

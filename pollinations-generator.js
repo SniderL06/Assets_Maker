@@ -120,8 +120,14 @@ const PollinationsGenerator = (() => {
         // Being explicit about a SINGLE, FLAT, SHADOWLESS backdrop is what
         // actually matters for chroma-keying afterwards — a vague "isolated
         // on plain background" often still gets soft gradients/shadows that
-        // don't key out cleanly.
-        let enhanced = `${userPrompt}, game asset, centered composition, high detail${styleTag}${itemCategory ? itemCategory.positive : ''}, isolated on a single solid ${bgDescription} background, flat uniform background color, no gradient, no shadow on background, no texture on background, studio product shot lighting`;
+        // don't key out cleanly. We also force the backdrop to stay bright
+        // regardless of the subject's own mood/lighting: a "dark, moody"
+        // character prompt was making the model render a dim, shadowed
+        // near-black backdrop even when a bright chroma-key color was
+        // requested — which then collided with dark fur/clothing on the
+        // subject itself, exactly like a white backdrop collides with white
+        // fur. The backdrop's brightness must never depend on the subject.
+        let enhanced = `${userPrompt}, game asset, centered composition, high detail${styleTag}${itemCategory ? itemCategory.positive : ''}, isolated on a single solid ${bgDescription} background, flat uniform background color, evenly and brightly lit background regardless of subject lighting or mood, background must stay bright and fully saturated even if the subject is dark or in shadow, no gradient, no shadow on background, no vignette, no darkened corners, no texture on background, studio product shot lighting on backdrop`;
         const combinedNegative = itemCategory
             ? (negativePrompt ? `${itemCategory.negative}, ${negativePrompt}` : itemCategory.negative)
             : negativePrompt;

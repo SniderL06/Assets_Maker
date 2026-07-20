@@ -64,6 +64,19 @@ const Free3DGenerator = (() => {
     }
 
     /**
+     * Opens a brand-new connection to the Space, bypassing the cached
+     * client. Used before the /generate call because reusing the same
+     * client/session across two sequential predict() calls was causing
+     * the queue connection opened for /preprocess to be silently closed
+     * afterwards — leaving the second predict() awaiting a dead
+     * connection forever with no error and no new network request.
+     */
+    async function getFreshClient() {
+        const { Client } = await loadGradioClientModule();
+        return Client.connect(SPACE_ID);
+    }
+
+    /**
      * Wraps a promise so that instead of hanging forever if the ZeroGPU
      * queue stalls (quota exhausted, Space overloaded, dropped connection),
      * it rejects with a clear, actionable error after `ms` milliseconds.
@@ -126,9 +139,11 @@ const Free3DGenerator = (() => {
         if (!processedImage) throw new Error('TripoSR no devolvió una imagen preprocesada.');
 
         if (onProgress) onProgress(50, 'Generando malla 3D (puede tardar 20-90s)...');
+        // Fresh connection here on purpose — see getFreshClient() comment.
+        const generateClient = await getFreshClient();
         // def generate(image, mc_resolution, formats=["obj", "glb"])
         const generateResult = await withTimeout(
-            client.predict('/generate', [
+            generateClient.predict('/generate', [
                 processedImage,
                 256, // mc_resolution
             ]),

@@ -64,18 +64,45 @@ const PollinationsGenerator = (() => {
         return `solid flat color (RGB ${r},${g},${b})`;
     }
 
+    // Weapons trip up diffusion models more than characters do: duplicated
+    // blades/barrels, a floating disembodied hand "holding" the item,
+    // off-center/angled poses instead of a clean icon view, and fused or
+    // asymmetrical parts. When the prompt is clearly about a weapon/item,
+    // we add targeted boosters and negatives for that instead of the
+    // generic character-oriented ones. Bilingual (ES/EN) since prompts here
+    // come from a Spanish-language UI.
+    const WEAPON_KEYWORDS = [
+        'espada', 'sable', 'katana', 'daga', 'puñal', 'hacha', 'lanza', 'arco',
+        'ballesta', 'maza', 'martillo de guerra', 'escudo', 'bastón', 'vara',
+        'pistola', 'rifle', 'escopeta', 'arma',
+        'sword', 'dagger', 'axe', 'spear', 'bow', 'crossbow', 'mace',
+        'warhammer', 'shield', 'staff', 'wand', 'gun', 'pistol', 'rifle', 'blade',
+    ];
+
+    function isWeaponPrompt(userPrompt) {
+        const p = userPrompt.toLowerCase();
+        return WEAPON_KEYWORDS.some(kw => p.includes(kw));
+    }
+
+    const WEAPON_POSITIVE_SUFFIX = ', single weapon, one item only, clean side profile icon view, symmetrical design, sharp clean silhouette, no hand, no fingers, not held, floating in place, game inventory icon';
+    const WEAPON_NEGATIVE_TERMS = 'duplicate weapon, two weapons, extra blade, extra barrel, fused parts, mutated handle, floating fingers, holding hand, hand holding weapon, asymmetrical, warped blade, bent shape, wrong perspective, foreshortened';
+
     function buildPrompt(userPrompt, style, negativePrompt, bgColor) {
         const styleTag = STYLE_PROMPT_SUFFIX[style] || STYLE_PROMPT_SUFFIX.realistic;
         const bgDescription = bgColor ? describeHexColor(bgColor) : 'plain';
+        const weaponMode = isWeaponPrompt(userPrompt);
         // Being explicit about a SINGLE, FLAT, SHADOWLESS backdrop is what
         // actually matters for chroma-keying afterwards — a vague "isolated
         // on plain background" often still gets soft gradients/shadows that
         // don't key out cleanly.
-        let enhanced = `${userPrompt}, game asset, centered composition, high detail${styleTag}, isolated on a single solid ${bgDescription} background, flat uniform background color, no gradient, no shadow on background, no texture on background, studio product shot lighting`;
-        if (negativePrompt) {
+        let enhanced = `${userPrompt}, game asset, centered composition, high detail${styleTag}${weaponMode ? WEAPON_POSITIVE_SUFFIX : ''}, isolated on a single solid ${bgDescription} background, flat uniform background color, no gradient, no shadow on background, no texture on background, studio product shot lighting`;
+        const combinedNegative = weaponMode
+            ? (negativePrompt ? `${WEAPON_NEGATIVE_TERMS}, ${negativePrompt}` : WEAPON_NEGATIVE_TERMS)
+            : negativePrompt;
+        if (combinedNegative) {
             // Pollinations has no dedicated negative-prompt parameter, so we
             // fold it into the text prompt as a soft hint instead.
-            enhanced += `, avoid: ${negativePrompt}`;
+            enhanced += `, avoid: ${combinedNegative}`;
         }
         return enhanced;
     }

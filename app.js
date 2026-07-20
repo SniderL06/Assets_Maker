@@ -1152,6 +1152,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // border pixel inward (so only the connected background region becomes
     // transparent — similar colors fully enclosed inside the asset are left
     // alone). keyColor is [r,g,b]; tolerance is 0-100.
+    //
+    // LEAK GUARD: a plain border-to-inward flood fill can "leak" through any
+    // 1px-wide gap that happens to match the background color — e.g. between
+    // a character's ears, under its chin, or in a soft drop-shadow edge —
+    // and from there eat into interior regions that should stay opaque
+    // (this was causing holes to appear in the middle of generated assets).
+    // To prevent that, we first build an eroded "safe" background mask: a
+    // pixel only counts as safe-to-traverse if ALL 8 of its neighbors are
+    // also background-colored. A 1px bridge fails this test (its side
+    // neighbors are subject-colored), so the flood fill can't cross it,
+    // while the real background — many pixels wide — passes freely. After
+    // flooding the safe mask, we grow the erased region back out by 1px
+    // (but only into pixels that were already background-colored) so the
+    // final edge lands in the same place it would have without the guard.
     function removeBackgroundAuto(keyColor, tolerance) {
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imgData.data;
@@ -1159,29 +1173,90 @@ document.addEventListener('DOMContentLoaded', () => {
         const height = imgData.height;
         const maxDist = (tolerance / 100) * 441.7;
         const [tR, tG, tB] = keyColor;
+        const n = width * height;
 
-        const visited = new Uint8Array(width * height);
-        const queue = [];
-        for (let x = 0; x < width; x++) { queue.push([x, 0]); queue.push([x, height - 1]); }
-        for (let y = 0; y < height; y++) { queue.push([0, y]); queue.push([width - 1, y]); }
-        queue.forEach(([x, y]) => { visited[y * width + x] = 1; });
-
-        while (queue.length > 0) {
-            const [x, y] = queue.shift();
-            const idx = (y * width + x) * 4;
-            const dist = colorDistanceRGB(data[idx], data[idx + 1], data[idx + 2], tR, tG, tB);
-            if (dist > maxDist) continue;
-
-            data[idx + 3] = 0;
-
-            const neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
-            for (const [nx, ny] of neighbors) {
-                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                const nPos = ny * width + nx;
-                if (visited[nPos]) continue;
-                visited[nPos] = 1;
-                queue.push([nx, ny]);
+        // 1) Raw background test per pixel (no connectivity yet).
+        const isBg = new Uint8Array(n);
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                const dist = colorDistanceRGB(data[idx], data[idx + 1], data[idx + 2], tR, tG, tB);
+                if (dist <= maxDist) isBg[y * width + x] = 1;
             }
+        }
+
+        // 2) Erode by 1px (8-connected): only pixels whose full neighborhood
+        // is also background survive. This severs 1px-wide leak bridges.
+        const safe = new Uint8Array(n);
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const p = y * width + x;
+                if (!isBg[p]) continue;
+                let allNeighborsBg = true;
+                for (let dy = -1; dy <= 1 && allNeighborsBg; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        const nx = x + dx, ny = y + dy;
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue; // treat out-of-canvas as background
+                        if (!isBg[ny * width + nx]) { allNeighborsBg = false; break; }
+                    }
+                }
+                safe[p] = allNeighborsBg ? 1 : 0;
+            }
+        }
+
+        // 3) Flood fill starting at the border, but only travel across
+        // "safe" (eroded) pixels — this is what actually blocks the leak.
+        const floodedCore = new Uint8Array(n);
+        const visited = new Uint8Array(n);
+        const queue = [];
+        for (let x = 0; x < width; x++) { queue.push(x); queue.push((height - 1) * width + x); }
+        for (let y = 0; y < height; y++) { queue.push(y * width); queue.push(y * width + width - 1); }
+        queue.forEach(p => { visited[p] = 1; });
+
+        let qi = 0;
+        while (qi < queue.length) {
+            const p = queue[qi++];
+            if (!safe[p]) continue;
+            floodedCore[p] = 1;
+
+            const x = p % width;
+            const y = (p - x) / width;
+            const neighborsXY = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+            for (const [nx, ny] of neighborsXY) {
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                const np = ny * width + nx;
+                if (visited[np]) continue;
+                visited[np] = 1;
+                queue.push(np);
+            }
+        }
+
+        // 4) Grow the flooded core back out by 1px, but only into pixels
+        // that were already background-colored (isBg) — this restores the
+        // natural edge that the erosion step shrank, without re-opening the
+        // leak path (a 1px bridge pixel may get re-included here since it's
+        // directly adjacent to real background, but the hole *behind* it
+        // is 2+ px away and stays untouched).
+        const erased = new Uint8Array(n);
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const p = y * width + x;
+                if (floodedCore[p]) { erased[p] = 1; continue; }
+                if (!isBg[p]) continue;
+                let touchesCore = false;
+                for (let dy = -1; dy <= 1 && !touchesCore; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        const nx = x + dx, ny = y + dy;
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                        if (floodedCore[ny * width + nx]) { touchesCore = true; break; }
+                    }
+                }
+                if (touchesCore) erased[p] = 1;
+            }
+        }
+
+        for (let p = 0; p < n; p++) {
+            if (erased[p]) data[p * 4 + 3] = 0;
         }
 
         featherAlphaEdges(data, width, height, tR, tG, tB, maxDist);

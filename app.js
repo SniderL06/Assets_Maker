@@ -1512,7 +1512,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // an alpha channel, so we key it out ourselves client-side).
             const wantsTransparent = bgAutoRemoveAfterGen ? bgAutoRemoveAfterGen.checked : true;
             const useAutoDetect = bgAutoDetect ? bgAutoDetect.checked : true;
-            const requestedBgHex = bgKeyColorInput?.value || '#ffffff';
+            const requestedBgHex = bgKeyColorInput?.value || '#00ff00';
 
             try {
                 const result = await PollinationsGenerator.generate({

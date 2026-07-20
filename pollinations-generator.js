@@ -64,40 +64,66 @@ const PollinationsGenerator = (() => {
         return `solid flat color (RGB ${r},${g},${b})`;
     }
 
-    // Weapons trip up diffusion models more than characters do: duplicated
-    // blades/barrels, a floating disembodied hand "holding" the item,
-    // off-center/angled poses instead of a clean icon view, and fused or
-    // asymmetrical parts. When the prompt is clearly about a weapon/item,
-    // we add targeted boosters and negatives for that instead of the
-    // generic character-oriented ones. Bilingual (ES/EN) since prompts here
-    // come from a Spanish-language UI.
-    const WEAPON_KEYWORDS = [
-        'espada', 'sable', 'katana', 'daga', 'puñal', 'hacha', 'lanza', 'arco',
-        'ballesta', 'maza', 'martillo de guerra', 'escudo', 'bastón', 'vara',
-        'pistola', 'rifle', 'escopeta', 'arma',
-        'sword', 'dagger', 'axe', 'spear', 'bow', 'crossbow', 'mace',
-        'warhammer', 'shield', 'staff', 'wand', 'gun', 'pistol', 'rifle', 'blade',
+    // Item prompts trip up diffusion models more than characters do:
+    // duplicated parts, a floating disembodied hand "holding" the item,
+    // off-center/angled poses instead of a clean icon view, fused or
+    // asymmetrical shapes. We add targeted boosters/negatives per item
+    // CATEGORY rather than one generic "weapon" bucket — mixing categories
+    // is what caused a bug where asking for "escudo" (shield) started
+    // returning swords: Pollinations has no real negative-prompt parameter
+    // (see note in buildPrompt), so "avoid: ..." is just plain text in the
+    // same prompt, and any word we mention — even to say "no blade" — can
+    // still leak into the image. So a shield prompt must never contain the
+    // words "blade"/"sword" at all, in either direction. Bilingual (ES/EN)
+    // since prompts here come from a Spanish-language UI.
+    const ITEM_CATEGORIES = [
+        {
+            name: 'blade',
+            keywords: ['espada', 'sable', 'katana', 'daga', 'puñal', 'cuchillo', 'machete', 'navaja',
+                       'sword', 'dagger', 'blade', 'knife'],
+            positive: ', single bladed weapon, one blade only, clean side profile icon view, symmetrical blade, sharp clean silhouette, no hand, no fingers, not held, floating in place, game inventory icon',
+            negative: 'duplicate blade, two swords, extra blade, fused blade, mutated handle, floating fingers, holding hand, hand holding sword, asymmetrical blade, warped blade, bent blade, wrong perspective',
+        },
+        {
+            name: 'polearmOrBlunt',
+            keywords: ['lanza', 'hacha', 'maza', 'martillo de guerra', 'bastón', 'vara',
+                       'axe', 'spear', 'mace', 'warhammer', 'staff', 'wand'],
+            positive: ', single weapon, one item only, clean side profile icon view, symmetrical design, sharp clean silhouette, no hand, no fingers, not held, floating in place, game inventory icon',
+            negative: 'duplicate weapon, two weapons, extra head, fused parts, mutated handle, floating fingers, holding hand, hand holding weapon, asymmetrical, warped shape, bent shape, wrong perspective',
+        },
+        {
+            name: 'ranged',
+            keywords: ['arco', 'ballesta', 'pistola', 'rifle', 'escopeta',
+                       'bow', 'crossbow', 'gun', 'pistol', 'rifle'],
+            positive: ', single ranged weapon, one item only, clean side profile icon view, symmetrical design, sharp clean silhouette, no hand, no fingers, not held, floating in place, game inventory icon',
+            negative: 'duplicate weapon, two weapons, extra barrel, fused parts, floating fingers, holding hand, hand holding weapon, asymmetrical, warped shape, wrong perspective',
+        },
+        {
+            name: 'shield',
+            keywords: ['escudo', 'shield'],
+            // Deliberately no mention of "blade"/"sword"/"weapon" anywhere
+            // here, positive or negative — see comment above.
+            positive: ', single shield, one item only, round or kite shield shape, seen from the front, symmetrical design, clean silhouette, no hand, no fingers, not held, floating in place, game inventory icon',
+            negative: 'duplicate shield, two shields, extra straps, mutated shape, floating fingers, holding hand, asymmetrical, warped shape, wrong perspective',
+        },
     ];
 
-    function isWeaponPrompt(userPrompt) {
+    function detectItemCategory(userPrompt) {
         const p = userPrompt.toLowerCase();
-        return WEAPON_KEYWORDS.some(kw => p.includes(kw));
+        return ITEM_CATEGORIES.find(cat => cat.keywords.some(kw => p.includes(kw))) || null;
     }
-
-    const WEAPON_POSITIVE_SUFFIX = ', single weapon, one item only, clean side profile icon view, symmetrical design, sharp clean silhouette, no hand, no fingers, not held, floating in place, game inventory icon';
-    const WEAPON_NEGATIVE_TERMS = 'duplicate weapon, two weapons, extra blade, extra barrel, fused parts, mutated handle, floating fingers, holding hand, hand holding weapon, asymmetrical, warped blade, bent shape, wrong perspective, foreshortened';
 
     function buildPrompt(userPrompt, style, negativePrompt, bgColor) {
         const styleTag = STYLE_PROMPT_SUFFIX[style] || STYLE_PROMPT_SUFFIX.realistic;
         const bgDescription = bgColor ? describeHexColor(bgColor) : 'plain';
-        const weaponMode = isWeaponPrompt(userPrompt);
+        const itemCategory = detectItemCategory(userPrompt);
         // Being explicit about a SINGLE, FLAT, SHADOWLESS backdrop is what
         // actually matters for chroma-keying afterwards — a vague "isolated
         // on plain background" often still gets soft gradients/shadows that
         // don't key out cleanly.
-        let enhanced = `${userPrompt}, game asset, centered composition, high detail${styleTag}${weaponMode ? WEAPON_POSITIVE_SUFFIX : ''}, isolated on a single solid ${bgDescription} background, flat uniform background color, no gradient, no shadow on background, no texture on background, studio product shot lighting`;
-        const combinedNegative = weaponMode
-            ? (negativePrompt ? `${WEAPON_NEGATIVE_TERMS}, ${negativePrompt}` : WEAPON_NEGATIVE_TERMS)
+        let enhanced = `${userPrompt}, game asset, centered composition, high detail${styleTag}${itemCategory ? itemCategory.positive : ''}, isolated on a single solid ${bgDescription} background, flat uniform background color, no gradient, no shadow on background, no texture on background, studio product shot lighting`;
+        const combinedNegative = itemCategory
+            ? (negativePrompt ? `${itemCategory.negative}, ${negativePrompt}` : itemCategory.negative)
             : negativePrompt;
         if (combinedNegative) {
             // Pollinations has no dedicated negative-prompt parameter, so we

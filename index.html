@@ -149,7 +149,13 @@
                             <div class="form-group half">
                                 <label for="bg-key-color">Color a eliminar (si no es automático)</label>
                                 <div class="color-picker-wrapper" style="width:100%;height:34px;border-radius:6px;">
-                                    <input type="color" id="bg-key-color" value="#ffffff" style="width:100%;height:100%;">
+                                    <!-- Verde chroma-key en vez de blanco: un fondo blanco es
+                                         indistinguible de partes blancas/crema muy comunes en
+                                         personajes y animales (pecho, dientes, ojos), así que el
+                                         recorte por color se come esas zonas. El verde puro casi
+                                         nunca aparece en el sujeto, así que es mucho más seguro
+                                         como color de fondo a eliminar. -->
+                                    <input type="color" id="bg-key-color" value="#00ff00" style="width:100%;height:100%;">
                                 </div>
                             </div>
                             <div class="form-group half" style="display:flex;align-items:flex-end;">

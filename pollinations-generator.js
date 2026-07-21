@@ -120,14 +120,20 @@ const PollinationsGenerator = (() => {
         // Being explicit about a SINGLE, FLAT, SHADOWLESS backdrop is what
         // actually matters for chroma-keying afterwards — a vague "isolated
         // on plain background" often still gets soft gradients/shadows that
-        // don't key out cleanly. We also force the backdrop to stay bright
-        // regardless of the subject's own mood/lighting: a "dark, moody"
-        // character prompt was making the model render a dim, shadowed
-        // near-black backdrop even when a bright chroma-key color was
-        // requested — which then collided with dark fur/clothing on the
-        // subject itself, exactly like a white backdrop collides with white
-        // fur. The backdrop's brightness must never depend on the subject.
-        let enhanced = `${userPrompt}, game asset, centered composition, high detail${styleTag}${itemCategory ? itemCategory.positive : ''}, isolated on a single solid ${bgDescription} background, flat uniform background color, evenly and brightly lit background regardless of subject lighting or mood, background must stay bright and fully saturated even if the subject is dark or in shadow, no gradient, no shadow on background, no vignette, no darkened corners, no texture on background, studio product shot lighting on backdrop`;
+        // don't key out cleanly. We phrase this as a literal "green screen
+        // studio backdrop" rather than just naming a color: that specific,
+        // well-known convention (like a TV/film green screen) is something
+        // diffusion models reproduce far more reliably as a flat, evenly
+        // lit surface than a generic color instruction. We also explicitly
+        // decouple it from the subject: a "dark, moody, cinematic" subject
+        // prompt was making the model darken the ENTIRE scene, backdrop
+        // included, even when a bright color was requested — which then
+        // collided with dark fur/clothing on the subject itself, exactly
+        // like a white backdrop collides with white fur.
+        const backdropPhrase = (bgColor && (bgDescription.includes('chroma key') || bgDescription === 'pure white'))
+            ? `shot in front of a professional ${bgDescription} screen studio backdrop (like a television green screen), the backdrop itself is a separate evenly and brightly lit flat surface completely unaffected by the subject's own lighting, mood, or shadows`
+            : `isolated on a single solid ${bgDescription} background, flat uniform background color`;
+        let enhanced = `${userPrompt}, game asset, centered composition, high detail${styleTag}${itemCategory ? itemCategory.positive : ''}, ${backdropPhrase}, no gradient on backdrop, no shadow on backdrop, no vignette, no darkened corners, backdrop stays bright even if the subject is dark or dramatically lit, no texture on background`;
         const combinedNegative = itemCategory
             ? (negativePrompt ? `${itemCategory.negative}, ${negativePrompt}` : itemCategory.negative)
             : negativePrompt;

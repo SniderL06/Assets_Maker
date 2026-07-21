@@ -6,11 +6,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Application State ---
     const state = {
         currentWorkspace: '2d', // '2d', '2.5d', '3d'
-        activeTool: 'pan', // 'pan', 'brush', 'eraser', 'picker', 'fill', 'crop', 'magicErase'
+        activeTool: 'pan', // 'pan', 'brush', 'eraser', 'picker', 'fill', 'crop'
         primaryColor: '#a855f7',
         brushSize: 8,
         brushOpacity: 1,
-        bgTolerance: 35, // 0-100, used by the magic-erase tool and auto background removal
         canvasWidth: 256,
         canvasHeight: 256,
         gridVisible: false,
@@ -80,17 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
         eraser: document.getElementById('tool-eraser'),
         picker: document.getElementById('tool-picker'),
         fill: document.getElementById('tool-fill'),
-        crop: document.getElementById('tool-crop'),
-        magicErase: document.getElementById('tool-magic-erase')
+        crop: document.getElementById('tool-crop')
     };
-
-    // Background transparency controls
-    const bgToleranceSlider = document.getElementById('bg-tolerance');
-    const bgToleranceVal = document.getElementById('bg-tolerance-val');
-    const bgKeyColorInput = document.getElementById('bg-key-color');
-    const bgAutoDetect = document.getElementById('bg-auto-detect');
-    const bgAutoRemoveAfterGen = document.getElementById('auto-remove-bg');
-    const btnRemoveBgNow = document.getElementById('btn-remove-bg-now');
 
     // Crop UI Elements
     const cropBox = document.getElementById('crop-box');
@@ -335,23 +325,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Background transparency controls
-        if (bgToleranceSlider) {
-            bgToleranceSlider.addEventListener('input', (e) => {
-                state.bgTolerance = parseInt(e.target.value, 10);
-                if (bgToleranceVal) bgToleranceVal.textContent = `${state.bgTolerance}%`;
-            });
-        }
-        if (btnRemoveBgNow) {
-            btnRemoveBgNow.addEventListener('click', () => {
-                const useAuto = bgAutoDetect ? bgAutoDetect.checked : true;
-                const keyColor = useAuto ? detectBackgroundColor() : hexToRgb(bgKeyColorInput?.value || '#ffffff').slice(0, 3);
-                removeBackgroundAuto(keyColor, state.bgTolerance);
-                saveHistoryState();
-                showNotification('🪄 Fondo eliminado según el color detectado/seleccionado.');
-            });
-        }
-
         // Keyboard shortcuts (global)
         document.addEventListener('keydown', (e) => {
             // Skip when typing in an input/textarea
@@ -362,7 +335,6 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (k === 'e') setTool('eraser');
             else if (k === 'i') setTool('picker');
             else if (k === 'g') setTool('fill');
-            else if (k === 'm') setTool('magicErase');
             else if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); undo(); }
             else if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); }
         });
@@ -940,11 +912,6 @@ document.addEventListener('DOMContentLoaded', () => {
             floodFill(Math.floor(pos.x), Math.floor(pos.y), hexToRgb(state.primaryColor));
             saveHistoryState();
             isDrawing = false;
-        } else if (state.activeTool === 'magicErase') {
-            floodFillTransparent(Math.floor(pos.x), Math.floor(pos.y), state.bgTolerance);
-            updateThreeTexture();
-            saveHistoryState();
-            isDrawing = false;
         }
     }
 
@@ -1068,214 +1035,6 @@ document.addEventListener('DOMContentLoaded', () => {
                Math.abs(c1[1] - c2[1]) < 5 &&
                Math.abs(c1[2] - c2[2]) < 5 &&
                Math.abs(c1[3] - c2[3]) < 5;
-    }
-
-    // ─── BACKGROUND / CHROMA-KEY TRANSPARENCY TOOLS ──────────────────────────
-    // Distance between two RGB colors (0-441ish range for full black vs white)
-    function colorDistanceRGB(r1, g1, b1, r2, g2, b2) {
-        return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
-    }
-
-    // Flood fill starting from (startX, startY) that makes matching pixels
-    // TRANSPARENT instead of filling them with a color. Tolerance is 0-100
-    // (mapped to an RGB distance threshold). Used by the "Varita Mágica"
-    // manual tool so the user can click any leftover background patch and
-    // erase just that connected region (won't eat into the character/asset
-    // unless it's actually connected and within tolerance).
-    function floodFillTransparent(startX, startY, tolerance) {
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
-        const width = imgData.width;
-        const height = imgData.height;
-        const maxDist = (tolerance / 100) * 441.7; // 441.7 ≈ max possible RGB distance
-
-        const startIdx = (startY * width + startX) * 4;
-        if (startIdx < 0 || startIdx >= data.length) return;
-        const tR = data[startIdx], tG = data[startIdx + 1], tB = data[startIdx + 2];
-
-        const visited = new Uint8Array(width * height);
-        const queue = [[startX, startY]];
-        visited[startY * width + startX] = 1;
-
-        while (queue.length > 0) {
-            const [x, y] = queue.shift();
-            const idx = (y * width + x) * 4;
-            const dist = colorDistanceRGB(data[idx], data[idx + 1], data[idx + 2], tR, tG, tB);
-            if (dist > maxDist) continue;
-
-            data[idx + 3] = 0; // make transparent
-
-            const neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
-            for (const [nx, ny] of neighbors) {
-                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                const nPos = ny * width + nx;
-                if (visited[nPos]) continue;
-                visited[nPos] = 1;
-                queue.push([nx, ny]);
-            }
-        }
-
-        featherAlphaEdges(data, width, height, tR, tG, tB, maxDist);
-        ctx.putImageData(imgData, 0, 0);
-    }
-
-    // Softens the hard cutout edge left by a key-color removal: pixels that
-    // are still opaque but close in color to the removed key color, and
-    // directly touching a transparent pixel, get partial alpha instead of
-    // staying fully opaque. This kills the white/color "halo" fringe that a
-    // plain hard cutout leaves around the subject.
-    function featherAlphaEdges(data, width, height, tR, tG, tB, maxDist) {
-        const featherBand = maxDist * 0.6; // extra soft margin beyond the hard cut
-        const original = new Uint8ClampedArray(data); // read alpha state before feathering
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const idx = (y * width + x) * 4;
-                if (original[idx + 3] === 0) continue; // already transparent
-                // Check 4-neighborhood for an already-transparent pixel
-                let touchesTransparent = false;
-                if (x > 0 && original[idx - 4 + 3] === 0) touchesTransparent = true;
-                else if (x < width - 1 && original[idx + 4 + 3] === 0) touchesTransparent = true;
-                else if (y > 0 && original[idx - width * 4 + 3] === 0) touchesTransparent = true;
-                else if (y < height - 1 && original[idx + width * 4 + 3] === 0) touchesTransparent = true;
-                if (!touchesTransparent) continue;
-
-                const dist = colorDistanceRGB(data[idx], data[idx + 1], data[idx + 2], tR, tG, tB);
-                if (dist < maxDist + featherBand) {
-                    const t = Math.max(0, Math.min(1, (dist - maxDist) / featherBand)); // 0 at cut edge, 1 at band end
-                    data[idx + 3] = Math.round(255 * t);
-                }
-            }
-        }
-    }
-
-    // Removes the background of the WHOLE canvas by flood-filling from every
-    // border pixel inward (so only the connected background region becomes
-    // transparent — similar colors fully enclosed inside the asset are left
-    // alone). keyColor is [r,g,b]; tolerance is 0-100.
-    //
-    // LEAK GUARD: a plain border-to-inward flood fill can "leak" through any
-    // 1px-wide gap that happens to match the background color — e.g. between
-    // a character's ears, under its chin, or in a soft drop-shadow edge —
-    // and from there eat into interior regions that should stay opaque
-    // (this was causing holes to appear in the middle of generated assets).
-    // To prevent that, we first build an eroded "safe" background mask: a
-    // pixel only counts as safe-to-traverse if ALL 8 of its neighbors are
-    // also background-colored. A 1px bridge fails this test (its side
-    // neighbors are subject-colored), so the flood fill can't cross it,
-    // while the real background — many pixels wide — passes freely. After
-    // flooding the safe mask, we grow the erased region back out by 1px
-    // (but only into pixels that were already background-colored) so the
-    // final edge lands in the same place it would have without the guard.
-    function removeBackgroundAuto(keyColor, tolerance) {
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
-        const width = imgData.width;
-        const height = imgData.height;
-        const maxDist = (tolerance / 100) * 441.7;
-        const [tR, tG, tB] = keyColor;
-        const n = width * height;
-
-        // 1) Raw background test per pixel (no connectivity yet).
-        const isBg = new Uint8Array(n);
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const idx = (y * width + x) * 4;
-                const dist = colorDistanceRGB(data[idx], data[idx + 1], data[idx + 2], tR, tG, tB);
-                if (dist <= maxDist) isBg[y * width + x] = 1;
-            }
-        }
-
-        // 2) Erode by 1px (8-connected): only pixels whose full neighborhood
-        // is also background survive. This severs 1px-wide leak bridges.
-        const safe = new Uint8Array(n);
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const p = y * width + x;
-                if (!isBg[p]) continue;
-                let allNeighborsBg = true;
-                for (let dy = -1; dy <= 1 && allNeighborsBg; dy++) {
-                    for (let dx = -1; dx <= 1; dx++) {
-                        const nx = x + dx, ny = y + dy;
-                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue; // treat out-of-canvas as background
-                        if (!isBg[ny * width + nx]) { allNeighborsBg = false; break; }
-                    }
-                }
-                safe[p] = allNeighborsBg ? 1 : 0;
-            }
-        }
-
-        // 3) Flood fill starting at the border, but only travel across
-        // "safe" (eroded) pixels — this is what actually blocks the leak.
-        const floodedCore = new Uint8Array(n);
-        const visited = new Uint8Array(n);
-        const queue = [];
-        for (let x = 0; x < width; x++) { queue.push(x); queue.push((height - 1) * width + x); }
-        for (let y = 0; y < height; y++) { queue.push(y * width); queue.push(y * width + width - 1); }
-        queue.forEach(p => { visited[p] = 1; });
-
-        let qi = 0;
-        while (qi < queue.length) {
-            const p = queue[qi++];
-            if (!safe[p]) continue;
-            floodedCore[p] = 1;
-
-            const x = p % width;
-            const y = (p - x) / width;
-            const neighborsXY = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
-            for (const [nx, ny] of neighborsXY) {
-                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                const np = ny * width + nx;
-                if (visited[np]) continue;
-                visited[np] = 1;
-                queue.push(np);
-            }
-        }
-
-        // 4) Grow the flooded core back out by 1px, but only into pixels
-        // that were already background-colored (isBg) — this restores the
-        // natural edge that the erosion step shrank, without re-opening the
-        // leak path (a 1px bridge pixel may get re-included here since it's
-        // directly adjacent to real background, but the hole *behind* it
-        // is 2+ px away and stays untouched).
-        const erased = new Uint8Array(n);
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const p = y * width + x;
-                if (floodedCore[p]) { erased[p] = 1; continue; }
-                if (!isBg[p]) continue;
-                let touchesCore = false;
-                for (let dy = -1; dy <= 1 && !touchesCore; dy++) {
-                    for (let dx = -1; dx <= 1; dx++) {
-                        const nx = x + dx, ny = y + dy;
-                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                        if (floodedCore[ny * width + nx]) { touchesCore = true; break; }
-                    }
-                }
-                if (touchesCore) erased[p] = 1;
-            }
-        }
-
-        for (let p = 0; p < n; p++) {
-            if (erased[p]) data[p * 4 + 3] = 0;
-        }
-
-        featherAlphaEdges(data, width, height, tR, tG, tB, maxDist);
-        ctx.putImageData(imgData, 0, 0);
-        updateThreeTexture();
-    }
-
-    // Samples the four corners of the canvas and averages them — used to
-    // auto-detect what shade of "background" Pollinations actually returned
-    // (pure white, off-white, cream, etc.) instead of assuming #ffffff.
-    function detectBackgroundColor() {
-        const w = canvas.width, h = canvas.height;
-        const corners = [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]];
-        let r = 0, g = 0, b = 0;
-        corners.forEach(([x, y]) => {
-            const d = ctx.getImageData(x, y, 1, 1).data;
-            r += d[0]; g += d[1]; b += d[2];
-        });
-        return [Math.round(r / 4), Math.round(g / 4), Math.round(b / 4)];
     }
 
     // Color conversion helpers
@@ -1436,35 +1195,77 @@ document.addEventListener('DOMContentLoaded', () => {
     // Call during init
     initEngineButtons();
 
-    // ─── FREE 3D GENERATION (TripoSR via Hugging Face, no key needed) ───────
-    function initFree3D() {
-        const generateBtn = document.getElementById('tripo3d-generate-btn');
-        if (!generateBtn) return;
+    // ─── TRIPO3D 3D AI INTEGRATION ───────────────────────────────────────────
+    function initTripo3D() {
+        const saveKeyBtn     = document.getElementById('tripo3d-save-key');
+        const keyInput       = document.getElementById('tripo3d-api-key');
+        const keyStatus      = document.getElementById('tripo3d-key-status');
+        const generateBtn    = document.getElementById('tripo3d-generate-btn');
 
-        generateBtn.addEventListener('click', async () => {
-            if (!window.Free3DGenerator) {
-                showNotification('⚠️ Módulo de generación 3D no disponible.');
+        if (!saveKeyBtn || !keyInput || !generateBtn) return;
+
+        function updateKeyStatus() {
+            if (window.Tripo3DGenerator && Tripo3DGenerator.hasKey()) {
+                if (keyStatus) keyStatus.textContent = '✅ Clave Tripo3D activa — listo para generar 3D real';
+                if (generateBtn) {
+                    generateBtn.style.background = 'rgba(168,85,247,0.2)';
+                    generateBtn.style.borderColor = 'rgba(168,85,247,0.7)';
+                }
+            } else {
+                if (keyStatus) keyStatus.innerHTML = '🔑 Sin clave. Regístrate gratis en <a href="https://platform.tripo3d.ai" target="_blank" style="color:#a78bfa;">platform.tripo3d.ai</a> — 200 créditos gratis.';
+            }
+        }
+
+        // Restore saved key
+        if (window.Tripo3DGenerator) {
+            const saved = Tripo3DGenerator.loadSavedKey();
+            if (saved) {
+                keyInput.value = saved;
+                updateKeyStatus();
+            }
+        }
+
+        saveKeyBtn.addEventListener('click', () => {
+            const key = keyInput.value.trim();
+            if (!key) {
+                showNotification('⚠️ Ingresa una API key válida de Tripo3D');
                 return;
             }
-            if (canvas.dataset.hasAsset !== 'true') {
-                showNotification('⚠️ Primero genera o dibuja un asset 2D — la versión 3D se crea a partir de esa imagen.');
+            if (window.Tripo3DGenerator) Tripo3DGenerator.setApiKey(key);
+            updateKeyStatus();
+            showNotification('✅ Clave Tripo3D guardada correctamente');
+        });
+
+        generateBtn.addEventListener('click', async () => {
+            if (!window.Tripo3DGenerator || !Tripo3DGenerator.hasKey()) {
+                showNotification('⚠️ Primero guarda tu API key de Tripo3D. Regístrate gratis en platform.tripo3d.ai');
+                return;
+            }
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                showNotification('⚠️ Escribe un prompt para generar el modelo 3D');
                 return;
             }
 
             // Switch to 3D view
             const threeContainer = document.getElementById('three-container');
-            const canvasContainerEl = document.getElementById('canvas-container');
+            const canvasContainer = document.getElementById('canvas-container');
             if (threeContainer) threeContainer.style.display = 'block';
-            if (canvasContainerEl) canvasContainerEl.style.display = 'none';
+            if (canvasContainer) canvasContainer.style.display = 'none';
 
-            showLoader('🎲 Generando modelo 3D real (gratis)...', 'Conectando con TripoSR (Hugging Face)...');
-            updateLoaderProgress(5, 'Conectando...');
+            const activeStyleOpt = document.querySelector('.style-option.active');
+            const style = activeStyleOpt ? activeStyleOpt.getAttribute('data-style') : 'cartoon';
+
+            showLoader('🎲 Tripo3D — Generando modelo 3D real...', 'Enviando prompt a la nube...');
+            updateLoaderProgress(5, 'Conectando con Tripo3D...');
 
             try {
-                const { model } = await Free3DGenerator.generateAndLoad(canvas, {
+                const { model } = await Tripo3DGenerator.generateAndLoad(prompt, {
+                    styleHint: style,
                     onProgress: (pct, msg) => updateLoaderProgress(pct, msg)
                 });
 
+                // Remove existing mesh and add the new GLB model
                 if (currentMesh) scene.remove(currentMesh);
                 currentMesh = model;
                 scene.add(currentMesh);
@@ -1472,16 +1273,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 orbitControls.update();
 
                 hideLoader();
-                showNotification('🎲 Modelo 3D generado gratis con TripoSR. ¡Puedes rotarlo con el ratón!');
+                showNotification('🎲 Modelo 3D real generado por Tripo3D. ¡Puedes rotarlo con el ratón!');
 
             } catch (err) {
                 hideLoader();
-                console.error('[Free3D] Error:', err);
-                showNotification(`⚠️ Generación 3D: ${err.message.slice(0, 120)}`);
+                console.error('[Tripo3D] Error:', err);
+                showNotification(`⚠️ Tripo3D: ${err.message.slice(0, 100)}`);
             }
         });
     }
-    initFree3D();
+    initTripo3D();
 
     async function triggerAIGenerate() {
         const prompt = promptInput.value.trim();
@@ -1507,13 +1308,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (statusDot)  { statusDot.style.background = '#f59e0b'; }
             if (statusText) { statusText.textContent = 'Generando imagen...'; }
 
-            // Ask Pollinations for a flat, single-color backdrop so it can be
-            // reliably chroma-keyed afterwards (diffusion models can't output
-            // an alpha channel, so we key it out ourselves client-side).
-            const wantsTransparent = bgAutoRemoveAfterGen ? bgAutoRemoveAfterGen.checked : true;
-            const useAutoDetect = bgAutoDetect ? bgAutoDetect.checked : true;
-            const requestedBgHex = bgKeyColorInput?.value || '#00ff00';
-
             try {
                 const result = await PollinationsGenerator.generate({
                     prompt,
@@ -1522,7 +1316,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     width: Math.max(resolution, 512),
                     height: Math.max(resolution, 512),
                     guidanceScale,
-                    bgColor: wantsTransparent ? requestedBgHex : null,
                     onProgress: (pct, msg) => updateLoaderProgress(pct, msg)
                 });
 
@@ -1534,38 +1327,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.imageSmoothingEnabled = true;
                     ctx.imageSmoothingQuality = 'high';
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                    // Auto chroma-key the background out
-                    if (wantsTransparent) {
-                        const keyColor = useAutoDetect ? detectBackgroundColor() : hexToRgb(requestedBgHex).slice(0, 3);
-
-                        // Sanity check: we asked Pollinations for a bright,
-                        // evenly-lit backdrop regardless of the subject's
-                        // mood. If the sampled corner color still comes out
-                        // dark (low luminance), the model likely ignored
-                        // that instruction and rendered a shadowed/near-black
-                        // backdrop instead — which is a serious risk for
-                        // dark-colored subjects (black fur, dark armor,
-                        // etc.), since a dark backdrop and dark subject
-                        // colors can become indistinguishable by color alone
-                        // and the auto-removal can eat large chunks of the
-                        // subject. In that case, cut the tolerance down
-                        // significantly (safer, smaller erasure that the
-                        // user can finish manually) and let them know.
-                        const [kr, kg, kb] = keyColor;
-                        const luminance = 0.299 * kr + 0.587 * kg + 0.114 * kb;
-                        const backdropLooksDark = luminance < 90;
-                        const effectiveTolerance = backdropLooksDark
-                            ? Math.min(state.bgTolerance, 12)
-                            : state.bgTolerance;
-
-                        removeBackgroundAuto(keyColor, effectiveTolerance);
-
-                        if (backdropLooksDark && typeof showNotification === 'function') {
-                            showNotification('El fondo generado salió más oscuro de lo esperado (puede pasar con personajes de tono oscuro/dramático). Reduje el recorte automático para no comerme el sujeto — usa la "Varita Mágica" para limpiar el fondo restante a mano.');
-                        }
-                    }
-
                     updateThreeTexture();
                     hideLoader();
                     saveHistoryState();
@@ -1848,8 +1609,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Weapons & items
-        const isSword     = matchesAny(['espada','sword','katana','sable','daga','dagger','cuchillo','knife','hacha','axe','lanza','spear','pica','pike','mangual','flail']);
-        const isBow       = matchesAny(['arco','bow','flecha','arrow','ballesta','crossbow','sling','honda']);
+        const isSword     = matchesAny(['espada','sword','katana','sable','daga','dagger','cuchillo','knife']);
+        const isAxe       = matchesAny(['hacha','axe','hachuela','tomahawk']);
+        const isSpear     = matchesAny(['lanza','spear','pica','pike','lance','tridente','trident']);
+        const isMace       = matchesAny(['mangual','flail','maza','mace','martillo','hammer']);
+        const isHoe       = matchesAny(['azada','hoe','azadon','azadón','pico','pickaxe','rastrillo','rake','pala','shovel']);
+        const isArrow     = matchesAny(['flecha','arrow','saeta']);
+        const isSickle    = matchesAny(['hoz','hoces','guadaña','guadana','scythe','sickle']);
+        const isBow       = matchesAny(['arco','bow','ballesta','crossbow','sling','honda']);
         const isStaff     = matchesAny(['baston','staff','varita','wand','cetro','scepter','totem']);
         const isShield    = matchesAny(['escudo','shield','armadura','armor']);
         const isHelmet    = matchesAny(['casco','helmet','yelmo','coraza','sombrero','hat']);
@@ -1863,6 +1630,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const isTree      = matchesAny(['arbol','tree','planta','plant','flor','flower','hongo','mushroom','seta']);
         const isBuilding  = matchesAny(['torre','tower','castillo','castle','edificio','building','puerta','door','muralla','wall']);
         const isTile      = matchesAny(['terreno','bloque','isométrico','isometric','tile','suelo','ground','cesped','grass','nieve','snow','lava','desierto']);
+        const isLongVariant = matchesAny(['larga','largo','long','greatsword','mandoble','claymore','two-handed','dos manos']);
+        const isMiniVariant = matchesAny(['mini','pequeña','pequena','pequeño','pequeno','chica','chico','corta','corto','small']);
+
 
         // Check if we use custom parameters from active editor
         const isCustomActive = charEditor && charEditor.style.display === 'block';
@@ -1903,7 +1673,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (isBoss)     drawCreatureBoss(cx, cy, baseColor, accentColor, glowColor, style);
                 else                 drawCreatureGoblin(cx, cy, baseColor, accentColor, glowColor, style);
             } else if (isSword) {
-                drawSwordAsset(cx, cy, baseColor, accentColor, glowColor, style);
+                drawSwordAsset(cx, cy, baseColor, accentColor, glowColor, style, isLongVariant);
+            } else if (isAxe) {
+                drawAxeAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isSpear) {
+                drawSpearAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isMace) {
+                drawMaceAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isHoe) {
+                drawHoeAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isArrow) {
+                drawArrowAsset(cx, cy, baseColor, accentColor, glowColor, style);
+            } else if (isSickle) {
+                drawSickleAsset(cx, cy, baseColor, accentColor, glowColor, style, isMiniVariant);
             } else if (isChest) {
                 drawChestAsset(cx, cy, baseColor, accentColor, glowColor, style);
             } else if (isShield) {
@@ -2011,7 +1793,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Procedural Drawing Routines
-    function drawSwordAsset(cx, cy, base, acc, glowCol, style) {
+    function drawSwordAsset(cx, cy, base, acc, glowCol, style, isLong = false) {
         ctx.save();
         
         // Diagonal rotation for traditional RPG sprite layout
@@ -2023,10 +1805,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const realistic = style === 'realistic';
         const S = canvas.width / 256; // scale factor for resolution-independent drawing
         
-        const bladeLen = canvas.height * 0.52;
-        const bladeW   = pixelated ? 8 : (realistic ? Math.round(20 * S) : Math.round(14 * S));
-        const guardW   = pixelated ? 24 : (realistic ? Math.round(56 * S) : Math.round(40 * S));
+        const bladeLen = canvas.height * (isLong ? 0.66 : 0.52);
+        const bladeW   = pixelated ? (isLong ? 7 : 8) : (realistic ? Math.round((isLong ? 17 : 20) * S) : Math.round((isLong ? 12 : 14) * S));
+        const guardW   = pixelated ? (isLong ? 30 : 24) : (realistic ? Math.round((isLong ? 68 : 56) * S) : Math.round((isLong ? 48 : 40) * S));
         const guardH   = realistic ? Math.round(10 * S) : Math.round(7 * S);
+        const gripExtra = isLong ? Math.round(22 * S) : 0; // longsword grip has extra room for a second hand
 
         // ---- DROP SHADOW ----
         if (!pixelated) {
@@ -2250,6 +2033,755 @@ document.addEventListener('DOMContentLoaded', () => {
         updateThreeTexture();
     }
 
+    // ---- AXE ASSET (hacha) ----
+    function drawAxeAsset(cx, cy, base, acc, glowCol, style) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(-Math.PI / 4);
+        ctx.translate(-cx, -cy);
+
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+
+        const shaftLen = canvas.height * 0.58;
+        const shaftW   = pixelated ? 7 : Math.round(9 * S);
+        const shaftTop = cy - shaftLen * 0.32;
+        const shaftBot = cy + shaftLen * 0.68;
+        const headY    = shaftTop + Math.round(10 * S);
+        const headR    = pixelated ? 30 : Math.round(46 * S);
+
+        // ---- DROP SHADOW ----
+        if (!pixelated) {
+            ctx.save();
+            ctx.globalAlpha = 0.25;
+            ctx.filter = 'blur(6px)';
+            ctx.fillStyle = '#000';
+            ctx.fillRect(cx - headR, shaftTop - headR * 0.6, headR * 2, shaftBot - shaftTop + headR);
+            ctx.restore();
+        }
+
+        if (realistic) {
+            // Shaft — wood grain
+            const shaftG = ctx.createLinearGradient(cx - shaftW / 2, shaftTop, cx + shaftW / 2, shaftTop);
+            shaftG.addColorStop(0,    '#2d1301');
+            shaftG.addColorStop(0.3,  '#7c3f18');
+            shaftG.addColorStop(0.55, '#a2611f');
+            shaftG.addColorStop(0.8,  '#7c3f18');
+            shaftG.addColorStop(1,    '#2d1301');
+            ctx.fillStyle = shaftG;
+            ctx.beginPath();
+            ctx.roundRect(cx - shaftW / 2, shaftTop, shaftW, shaftBot - shaftTop, shaftW * 0.4);
+            ctx.fill();
+            // wrapped leather grip near bottom
+            const gripY = shaftBot - Math.round(34 * S);
+            ctx.fillStyle = '#1c0f08';
+            for (let yy = gripY; yy < shaftBot - Math.round(4 * S); yy += Math.round(5 * S)) {
+                ctx.fillRect(cx - shaftW / 2 - 1, yy, shaftW + 2, Math.round(2.5 * S));
+            }
+            // pommel cap
+            ctx.fillStyle = adjustBrightness(acc, -20);
+            ctx.beginPath();
+            ctx.arc(cx, shaftBot - Math.round(2 * S), Math.round(6 * S), 0, Math.PI * 2);
+            ctx.fill();
+
+            // Metal langets (straps binding head to shaft)
+            ctx.fillStyle = adjustBrightness(acc, -10);
+            ctx.fillRect(cx - shaftW * 0.9, headY - Math.round(4 * S), shaftW * 1.8, Math.round(30 * S));
+
+            // ---- AXE HEAD — single broad crescent blade on one side ----
+            ctx.save();
+            ctx.shadowColor = base;
+            ctx.shadowBlur = Math.round(20 * S);
+            const headG = ctx.createLinearGradient(cx, headY - headR, cx + headR, headY + headR);
+            headG.addColorStop(0,    adjustBrightness(base, -35));
+            headG.addColorStop(0.25, '#dde4ed');
+            headG.addColorStop(0.5,  '#ffffff');
+            headG.addColorStop(0.55, base);
+            headG.addColorStop(0.8,  '#b0b8c4');
+            headG.addColorStop(1,    adjustBrightness(base, -40));
+            ctx.fillStyle = headG;
+            ctx.beginPath();
+            ctx.moveTo(cx + shaftW * 0.6, headY - Math.round(20 * S));
+            ctx.quadraticCurveTo(cx + headR * 1.15, headY - headR * 0.55, cx + headR * 0.55, headY);
+            ctx.quadraticCurveTo(cx + headR * 1.2, headY + headR * 0.65, cx + shaftW * 0.6, headY + Math.round(24 * S));
+            ctx.quadraticCurveTo(cx + shaftW * 1.6, headY, cx + shaftW * 0.6, headY - Math.round(20 * S));
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            // Edge specular
+            ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+            ctx.lineWidth = Math.max(1, Math.round(1.5 * S));
+            ctx.beginPath();
+            ctx.moveTo(cx + shaftW * 0.6, headY - Math.round(18 * S));
+            ctx.quadraticCurveTo(cx + headR * 1.1, headY - headR * 0.5, cx + headR * 0.55, headY);
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.moveTo(cx + headR * 0.55, headY);
+            ctx.quadraticCurveTo(cx + headR * 1.15, headY + headR * 0.6, cx + shaftW * 0.6, headY + Math.round(22 * S));
+            ctx.stroke();
+
+            drawGlowHalo(cx + headR * 0.4, headY, headR * 0.55, glowCol, 2);
+        } else {
+            // ---- PIXEL / CARTOON AXE ----
+            ctx.fillStyle = pixelated ? '#78350f' : '#7c3f18';
+            ctx.fillRect(cx - shaftW / 2, shaftTop, shaftW, shaftBot - shaftTop);
+
+            if (!pixelated) { ctx.shadowColor = base; ctx.shadowBlur = Math.round(14 * S); }
+            ctx.fillStyle = base;
+            ctx.beginPath();
+            ctx.moveTo(cx + shaftW * 0.5, headY - Math.round(16 * S));
+            ctx.quadraticCurveTo(cx + headR, headY - headR * 0.5, cx + headR * 0.5, headY);
+            ctx.quadraticCurveTo(cx + headR, headY + headR * 0.5, cx + shaftW * 0.5, headY + Math.round(18 * S));
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.beginPath();
+            ctx.moveTo(cx + shaftW * 0.5, headY - Math.round(14 * S));
+            ctx.quadraticCurveTo(cx + headR * 0.85, headY - headR * 0.42, cx + headR * 0.45, headY);
+            ctx.lineTo(cx + shaftW * 1.1, headY - Math.round(2 * S));
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = acc;
+            ctx.fillRect(cx - shaftW * 0.8, headY - Math.round(4 * S), shaftW * 1.6, Math.round(8 * S));
+        }
+
+        ctx.restore();
+        updateThreeTexture();
+    }
+
+    // ---- SPEAR ASSET (lanza) ----
+    function drawSpearAsset(cx, cy, base, acc, glowCol, style) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(-Math.PI / 4);
+        ctx.translate(-cx, -cy);
+
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+
+        const shaftLen = canvas.height * 0.82;
+        const shaftW   = pixelated ? 5 : Math.round(6 * S);
+        const shaftTop = cy - shaftLen * 0.56;
+        const shaftBot = cy + shaftLen * 0.44;
+        const headLen  = pixelated ? 34 : Math.round(52 * S);
+        const headW    = pixelated ? 12 : Math.round(16 * S);
+
+        if (!pixelated) {
+            ctx.save();
+            ctx.globalAlpha = 0.22;
+            ctx.filter = 'blur(6px)';
+            ctx.fillStyle = '#000';
+            ctx.fillRect(cx - headW, shaftTop - headLen * 0.3, headW * 2, shaftBot - shaftTop + headLen);
+            ctx.restore();
+        }
+
+        // ---- SHAFT ----
+        const shaftG = ctx.createLinearGradient(cx - shaftW / 2, shaftTop, cx + shaftW / 2, shaftTop);
+        if (realistic) {
+            shaftG.addColorStop(0,    '#2d1301');
+            shaftG.addColorStop(0.35, '#8a4a1c');
+            shaftG.addColorStop(0.55, '#c2802f');
+            shaftG.addColorStop(0.75, '#8a4a1c');
+            shaftG.addColorStop(1,    '#2d1301');
+        } else {
+            shaftG.addColorStop(0, '#78350f');
+            shaftG.addColorStop(0.5, '#a35a1e');
+            shaftG.addColorStop(1, '#78350f');
+        }
+        ctx.fillStyle = shaftG;
+        ctx.fillRect(cx - shaftW / 2, shaftTop + headLen * 0.55, shaftW, shaftBot - shaftTop - headLen * 0.55);
+
+        // wrapped grip band + tail cap
+        ctx.fillStyle = realistic ? '#1c0f08' : '#3f2409';
+        for (let yy = shaftBot - Math.round(50 * S); yy < shaftBot - Math.round(10 * S); yy += Math.round(6 * S)) {
+            ctx.fillRect(cx - shaftW / 2 - 1, yy, shaftW + 2, Math.round(2.5 * S));
+        }
+        ctx.fillStyle = adjustBrightness(acc, -20);
+        ctx.beginPath();
+        ctx.moveTo(cx - shaftW, shaftBot - Math.round(6 * S));
+        ctx.lineTo(cx + shaftW, shaftBot - Math.round(6 * S));
+        ctx.lineTo(cx, shaftBot + Math.round(6 * S));
+        ctx.closePath();
+        ctx.fill();
+
+        // Socket binding where head meets shaft
+        ctx.fillStyle = adjustBrightness(acc, -5);
+        ctx.fillRect(cx - shaftW * 0.9, shaftTop + headLen * 0.5, shaftW * 1.8, Math.round(12 * S));
+
+        // ---- SPEARHEAD — leaf-shaped blade ----
+        if (realistic) {
+            ctx.save();
+            ctx.shadowColor = base;
+            ctx.shadowBlur = Math.round(22 * S);
+            const headG = ctx.createLinearGradient(cx - headW / 2, shaftTop, cx + headW / 2, shaftTop);
+            headG.addColorStop(0,    adjustBrightness(base, -35));
+            headG.addColorStop(0.3,  '#dde4ed');
+            headG.addColorStop(0.5,  '#ffffff');
+            headG.addColorStop(0.55, base);
+            headG.addColorStop(0.85, '#b0b8c4');
+            headG.addColorStop(1,    adjustBrightness(base, -40));
+            ctx.fillStyle = headG;
+            ctx.beginPath();
+            ctx.moveTo(cx, shaftTop - headLen);
+            ctx.quadraticCurveTo(cx + headW * 0.65, shaftTop - headLen * 0.4, cx + headW * 0.28, shaftTop + headLen * 0.35);
+            ctx.lineTo(cx - headW * 0.28, shaftTop + headLen * 0.35);
+            ctx.quadraticCurveTo(cx - headW * 0.65, shaftTop - headLen * 0.4, cx, shaftTop - headLen);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Center ridge
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.lineWidth = Math.max(1, Math.round(1.2 * S));
+            ctx.beginPath();
+            ctx.moveTo(cx, shaftTop - headLen + Math.round(4 * S));
+            ctx.lineTo(cx, shaftTop + headLen * 0.3);
+            ctx.stroke();
+
+            // Edge specular
+            ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+            ctx.lineWidth = Math.max(0.6, S * 0.8);
+            ctx.beginPath();
+            ctx.moveTo(cx, shaftTop - headLen);
+            ctx.quadraticCurveTo(cx + headW * 0.55, shaftTop - headLen * 0.4, cx + headW * 0.22, shaftTop + headLen * 0.3);
+            ctx.stroke();
+
+            drawGlowHalo(cx, shaftTop - headLen * 0.4, headLen * 0.4, glowCol, 2);
+        } else {
+            if (!pixelated) { ctx.shadowColor = base; ctx.shadowBlur = Math.round(14 * S); }
+            ctx.fillStyle = base;
+            ctx.beginPath();
+            ctx.moveTo(cx, shaftTop - headLen);
+            ctx.lineTo(cx + headW * 0.5, shaftTop + headLen * 0.3);
+            ctx.lineTo(cx - headW * 0.5, shaftTop + headLen * 0.3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.beginPath();
+            ctx.moveTo(cx, shaftTop - headLen + Math.round(4 * S));
+            ctx.lineTo(cx + Math.round(2.5 * S), shaftTop + headLen * 0.2);
+            ctx.lineTo(cx - Math.round(1 * S), shaftTop + headLen * 0.2);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        ctx.restore();
+        updateThreeTexture();
+    }
+
+    // ---- MACE ASSET (maza / mangual / martillo) ----
+    function drawMaceAsset(cx, cy, base, acc, glowCol, style) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(-Math.PI / 4);
+        ctx.translate(-cx, -cy);
+
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+
+        const shaftLen = canvas.height * 0.5;
+        const shaftW   = pixelated ? 7 : Math.round(9 * S);
+        const shaftBot = cy + shaftLen * 0.62;
+        const shaftTop = cy - shaftLen * 0.38;
+        const headR    = pixelated ? 26 : Math.round(38 * S);
+        const headCY   = shaftTop - headR * 0.55;
+
+        if (!pixelated) {
+            ctx.save();
+            ctx.globalAlpha = 0.25;
+            ctx.filter = 'blur(6px)';
+            ctx.fillStyle = '#000';
+            ctx.fillRect(cx - headR, headCY - headR, headR * 2, shaftBot - headCY + headR);
+            ctx.restore();
+        }
+
+        // ---- SHAFT / HANDLE ----
+        const shaftG = ctx.createLinearGradient(cx - shaftW / 2, shaftTop, cx + shaftW / 2, shaftTop);
+        shaftG.addColorStop(0,   '#1c0f08');
+        shaftG.addColorStop(0.5, realistic ? '#5c2d12' : '#78350f');
+        shaftG.addColorStop(1,   '#1c0f08');
+        ctx.fillStyle = shaftG;
+        ctx.beginPath();
+        ctx.roundRect(cx - shaftW / 2, shaftTop, shaftW, shaftBot - shaftTop, shaftW * 0.4);
+        ctx.fill();
+        // leather wrap
+        for (let yy = shaftBot - Math.round(36 * S); yy < shaftBot - Math.round(6 * S); yy += Math.round(5 * S)) {
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(cx - shaftW / 2 - 1, yy, shaftW + 2, Math.round(2 * S));
+        }
+        // pommel loop
+        ctx.fillStyle = adjustBrightness(acc, -20);
+        ctx.beginPath();
+        ctx.arc(cx, shaftBot - Math.round(2 * S), Math.round(5 * S), 0, Math.PI * 2);
+        ctx.fill();
+
+        // Collar binding head to shaft
+        ctx.fillStyle = adjustBrightness(acc, -10);
+        ctx.fillRect(cx - shaftW * 0.9, shaftTop - Math.round(2 * S), shaftW * 1.8, Math.round(14 * S));
+
+        if (realistic) {
+            // ---- FLANGED MACE HEAD ----
+            ctx.save();
+            ctx.shadowColor = base;
+            ctx.shadowBlur = Math.round(22 * S);
+            const headG = ctx.createRadialGradient(cx - headR * 0.3, headCY - headR * 0.3, 1, cx, headCY, headR * 1.1);
+            headG.addColorStop(0,   '#f8fafc');
+            headG.addColorStop(0.35, base);
+            headG.addColorStop(0.75, adjustBrightness(base, -35));
+            headG.addColorStop(1,   '#0f172a');
+            ctx.fillStyle = headG;
+            ctx.beginPath();
+            ctx.arc(cx, headCY, headR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Flanges — angular metal fins radiating from head
+            const flangeCount = 6;
+            for (let i = 0; i < flangeCount; i++) {
+                const a = (Math.PI * 2 / flangeCount) * i - Math.PI / 2;
+                const fx1 = cx + Math.cos(a) * headR * 0.35;
+                const fy1 = headCY + Math.sin(a) * headR * 0.35;
+                const fx2 = cx + Math.cos(a) * headR * 1.25;
+                const fy2 = headCY + Math.sin(a) * headR * 1.25;
+                const perpA = a + Math.PI / 2;
+                const fw = headR * 0.16;
+                const flangeG = ctx.createLinearGradient(fx1, fy1, fx2, fy2);
+                flangeG.addColorStop(0, adjustBrightness(acc, -10));
+                flangeG.addColorStop(0.5, '#e2e8f0');
+                flangeG.addColorStop(1, adjustBrightness(acc, -30));
+                ctx.fillStyle = flangeG;
+                ctx.beginPath();
+                ctx.moveTo(fx1 + Math.cos(perpA) * fw, fy1 + Math.sin(perpA) * fw);
+                ctx.lineTo(fx2 + Math.cos(perpA) * fw * 0.4, fy2 + Math.sin(perpA) * fw * 0.4);
+                ctx.lineTo(fx2 - Math.cos(perpA) * fw * 0.4, fy2 - Math.sin(perpA) * fw * 0.4);
+                ctx.lineTo(fx1 - Math.cos(perpA) * fw, fy1 - Math.sin(perpA) * fw);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+            drawSpecular(cx - headR * 0.3, headCY - headR * 0.3, headR * 0.4, 0.7);
+            drawGlowHalo(cx, headCY, headR * 1.2, glowCol, 2);
+        } else {
+            if (!pixelated) { ctx.shadowColor = base; ctx.shadowBlur = Math.round(14 * S); }
+            ctx.fillStyle = base;
+            ctx.beginPath();
+            ctx.arc(cx, headCY, headR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // simple spikes
+            for (let i = 0; i < 6; i++) {
+                const a = (Math.PI * 2 / 6) * i;
+                const sx1 = cx + Math.cos(a) * headR * 0.8;
+                const sy1 = headCY + Math.sin(a) * headR * 0.8;
+                const sx2 = cx + Math.cos(a) * headR * 1.35;
+                const sy2 = headCY + Math.sin(a) * headR * 1.35;
+                ctx.fillStyle = acc;
+                ctx.beginPath();
+                ctx.moveTo(sx1 + Math.cos(a + Math.PI / 2) * 4, sy1 + Math.sin(a + Math.PI / 2) * 4);
+                ctx.lineTo(sx2, sy2);
+                ctx.lineTo(sx1 - Math.cos(a + Math.PI / 2) * 4, sy1 - Math.sin(a + Math.PI / 2) * 4);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.beginPath();
+            ctx.arc(cx - headR * 0.3, headCY - headR * 0.3, headR * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+        updateThreeTexture();
+    }
+
+    // ---- HOE ASSET (azada) ----
+    function drawHoeAsset(cx, cy, base, acc, glowCol, style) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(-Math.PI / 4);
+        ctx.translate(-cx, -cy);
+
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+
+        const shaftLen = canvas.height * 0.62;
+        const shaftW   = pixelated ? 6 : Math.round(7 * S);
+        const shaftTop = cy - shaftLen * 0.42;
+        const shaftBot = cy + shaftLen * 0.58;
+        const bladeW   = pixelated ? 40 : Math.round(56 * S);
+        const bladeH   = pixelated ? 18 : Math.round(24 * S);
+
+        if (!pixelated) {
+            ctx.save();
+            ctx.globalAlpha = 0.22;
+            ctx.filter = 'blur(6px)';
+            ctx.fillStyle = '#000';
+            ctx.fillRect(cx - bladeW / 2, shaftTop - bladeH, bladeW, shaftBot - shaftTop + bladeH);
+            ctx.restore();
+        }
+
+        // ---- SHAFT ----
+        const shaftG = ctx.createLinearGradient(cx - shaftW / 2, shaftTop, cx + shaftW / 2, shaftTop);
+        shaftG.addColorStop(0,   '#2d1301');
+        shaftG.addColorStop(0.5, realistic ? '#a2611f' : '#94530f');
+        shaftG.addColorStop(1,   '#2d1301');
+        ctx.fillStyle = shaftG;
+        ctx.fillRect(cx - shaftW / 2, shaftTop + Math.round(6 * S), shaftW, shaftBot - shaftTop - Math.round(6 * S));
+        if (realistic) {
+            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.fillRect(cx - shaftW / 2, shaftTop + Math.round(6 * S), Math.max(1, shaftW * 0.25), shaftBot - shaftTop - Math.round(6 * S));
+        }
+        // grip wrap near bottom
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        for (let yy = shaftBot - Math.round(38 * S); yy < shaftBot - Math.round(8 * S); yy += Math.round(5 * S)) {
+            ctx.fillRect(cx - shaftW / 2 - 1, yy, shaftW + 2, Math.round(2 * S));
+        }
+
+        // ---- METAL COLLAR / SOCKET connecting blade to shaft ----
+        const collarG = ctx.createLinearGradient(cx - shaftW * 0.8, shaftTop, cx + shaftW * 0.8, shaftTop);
+        collarG.addColorStop(0, adjustBrightness(acc, -25));
+        collarG.addColorStop(0.5, realistic ? adjustBrightness(acc, 10) : acc);
+        collarG.addColorStop(1, adjustBrightness(acc, -25));
+        ctx.fillStyle = collarG;
+        ctx.beginPath();
+        ctx.moveTo(cx - shaftW * 0.8, shaftTop + Math.round(6 * S));
+        ctx.lineTo(cx + shaftW * 0.8, shaftTop + Math.round(6 * S));
+        ctx.lineTo(cx + Math.round(6 * S), shaftTop - Math.round(4 * S));
+        ctx.lineTo(cx - Math.round(6 * S), shaftTop - Math.round(4 * S));
+        ctx.closePath();
+        ctx.fill();
+        if (realistic) {
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.lineWidth = Math.max(0.6, S * 0.5);
+            ctx.stroke();
+            // Rivets pinning collar to shaft
+            [-1, 1].forEach(side => {
+                const rx = cx + side * shaftW * 0.5, ry = shaftTop + Math.round(3 * S);
+                const rG = ctx.createRadialGradient(rx - 1, ry - 1, 0, rx, ry, Math.round(2.4 * S));
+                rG.addColorStop(0, '#fff'); rG.addColorStop(1, adjustBrightness(acc, -40));
+                ctx.fillStyle = rG;
+                ctx.beginPath(); ctx.arc(rx, ry, Math.round(2 * S), 0, Math.PI * 2); ctx.fill();
+            });
+        }
+
+        // ---- HOE BLADE — flat trapezoidal blade angled perpendicular to shaft ----
+        if (realistic) {
+            ctx.save();
+            ctx.shadowColor = base;
+            ctx.shadowBlur = Math.round(18 * S);
+            const bladeG = ctx.createLinearGradient(cx - bladeW / 2, shaftTop, cx + bladeW / 2, shaftTop);
+            bladeG.addColorStop(0,    adjustBrightness(base, -35));
+            bladeG.addColorStop(0.25, '#dde4ed');
+            bladeG.addColorStop(0.5,  '#ffffff');
+            bladeG.addColorStop(0.55, base);
+            bladeG.addColorStop(0.8,  '#b0b8c4');
+            bladeG.addColorStop(1,    adjustBrightness(base, -40));
+            ctx.fillStyle = bladeG;
+            ctx.beginPath();
+            ctx.moveTo(cx - Math.round(7 * S), shaftTop - Math.round(2 * S));
+            ctx.lineTo(cx + Math.round(7 * S), shaftTop - Math.round(2 * S));
+            ctx.lineTo(cx + bladeW / 2, shaftTop - bladeH);
+            ctx.quadraticCurveTo(cx, shaftTop - bladeH * 1.35, cx - bladeW / 2, shaftTop - bladeH);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Blade thickness bevel — thin darker strip along the back edge for depth
+            ctx.fillStyle = 'rgba(0,0,0,0.22)';
+            ctx.beginPath();
+            ctx.moveTo(cx - Math.round(7 * S), shaftTop - Math.round(2 * S));
+            ctx.lineTo(cx + Math.round(7 * S), shaftTop - Math.round(2 * S));
+            ctx.lineTo(cx + bladeW * 0.42, shaftTop - bladeH * 0.78);
+            ctx.lineTo(cx - bladeW * 0.42, shaftTop - bladeH * 0.78);
+            ctx.closePath();
+            ctx.fill();
+
+            // Center ridge for definition
+            ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+            ctx.lineWidth = Math.max(0.6, S * 0.6);
+            ctx.beginPath();
+            ctx.moveTo(cx, shaftTop - Math.round(2 * S));
+            ctx.lineTo(cx, shaftTop - bladeH * 1.1);
+            ctx.stroke();
+
+            // Edge specular
+            ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+            ctx.lineWidth = Math.max(1, Math.round(1.3 * S));
+            ctx.beginPath();
+            ctx.moveTo(cx - bladeW / 2, shaftTop - bladeH);
+            ctx.quadraticCurveTo(cx, shaftTop - bladeH * 1.32, cx + bladeW / 2, shaftTop - bladeH);
+            ctx.stroke();
+
+            drawGlowHalo(cx, shaftTop - bladeH, bladeW * 0.35, glowCol, 2);
+        } else {
+            if (!pixelated) { ctx.shadowColor = base; ctx.shadowBlur = Math.round(12 * S); }
+            ctx.fillStyle = base;
+            ctx.beginPath();
+            ctx.moveTo(cx - Math.round(6 * S), shaftTop);
+            ctx.lineTo(cx + Math.round(6 * S), shaftTop);
+            ctx.lineTo(cx + bladeW / 2, shaftTop - bladeH);
+            ctx.lineTo(cx - bladeW / 2, shaftTop - bladeH);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Outline for a crisper cartoon silhouette
+            ctx.strokeStyle = adjustBrightness(base, -45);
+            ctx.lineWidth = pixelated ? 1.5 : Math.round(1.6 * S);
+            ctx.stroke();
+
+            // Bottom shade for a hint of thickness
+            ctx.fillStyle = adjustBrightness(base, -25);
+            ctx.beginPath();
+            ctx.moveTo(cx - Math.round(6 * S), shaftTop);
+            ctx.lineTo(cx + Math.round(6 * S), shaftTop);
+            ctx.lineTo(cx + bladeW * 0.42, shaftTop - bladeH * 0.35);
+            ctx.lineTo(cx - bladeW * 0.42, shaftTop - bladeH * 0.35);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255,255,255,0.65)';
+            ctx.fillRect(cx - bladeW / 2, shaftTop - bladeH, bladeW, Math.round(3 * S));
+        }
+
+        ctx.restore();
+        updateThreeTexture();
+    }
+
+    // ---- ARROW ASSET (flecha) ----
+    function drawArrowAsset(cx, cy, base, acc, glowCol, style) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(-Math.PI / 4);
+        ctx.translate(-cx, -cy);
+
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+
+        const shaftLen = canvas.height * 0.68;
+        const shaftW   = pixelated ? 3 : Math.round(3.5 * S);
+        const shaftTop = cy - shaftLen * 0.55;
+        const shaftBot = cy + shaftLen * 0.45;
+        const headLen  = pixelated ? 20 : Math.round(28 * S);
+        const headW    = pixelated ? 10 : Math.round(13 * S);
+        const fletchLen = pixelated ? 22 : Math.round(30 * S);
+        const fletchW   = pixelated ? 12 : Math.round(16 * S);
+
+        if (!pixelated) {
+            ctx.save();
+            ctx.globalAlpha = 0.2;
+            ctx.filter = 'blur(5px)';
+            ctx.fillStyle = '#000';
+            ctx.fillRect(cx - fletchW, shaftTop - headLen, fletchW * 2, shaftBot - shaftTop + headLen);
+            ctx.restore();
+        }
+
+        // ---- SHAFT ----
+        const shaftG = ctx.createLinearGradient(cx - shaftW / 2, shaftTop, cx + shaftW / 2, shaftTop);
+        shaftG.addColorStop(0, '#3a220a');
+        shaftG.addColorStop(0.5, realistic ? '#a2611f' : '#94530f');
+        shaftG.addColorStop(1, '#3a220a');
+        ctx.fillStyle = shaftG;
+        ctx.fillRect(cx - shaftW / 2, shaftTop + headLen * 0.5, shaftW, shaftBot - shaftTop - headLen * 0.5);
+
+        // ---- ARROWHEAD ----
+        if (realistic) {
+            ctx.save();
+            ctx.shadowColor = base;
+            ctx.shadowBlur = Math.round(14 * S);
+            const headG = ctx.createLinearGradient(cx - headW / 2, shaftTop, cx + headW / 2, shaftTop);
+            headG.addColorStop(0,    adjustBrightness(base, -35));
+            headG.addColorStop(0.3,  '#dde4ed');
+            headG.addColorStop(0.5,  '#ffffff');
+            headG.addColorStop(0.55, base);
+            headG.addColorStop(1,    adjustBrightness(base, -40));
+            ctx.fillStyle = headG;
+            ctx.beginPath();
+            ctx.moveTo(cx, shaftTop - headLen);
+            ctx.lineTo(cx + headW / 2, shaftTop + headLen * 0.35);
+            ctx.lineTo(cx + Math.round(2 * S), shaftTop + headLen * 0.15);
+            ctx.lineTo(cx - Math.round(2 * S), shaftTop + headLen * 0.15);
+            ctx.lineTo(cx - headW / 2, shaftTop + headLen * 0.35);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+            ctx.lineWidth = Math.max(0.6, S * 0.7);
+            ctx.beginPath();
+            ctx.moveTo(cx, shaftTop - headLen);
+            ctx.lineTo(cx + headW * 0.4, shaftTop + headLen * 0.3);
+            ctx.stroke();
+        } else {
+            if (!pixelated) { ctx.shadowColor = base; ctx.shadowBlur = Math.round(10 * S); }
+            ctx.fillStyle = base;
+            ctx.beginPath();
+            ctx.moveTo(cx, shaftTop - headLen);
+            ctx.lineTo(cx + headW / 2, shaftTop + headLen * 0.3);
+            ctx.lineTo(cx - headW / 2, shaftTop + headLen * 0.3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        // ---- FLETCHING — three feather vanes near the nock end ----
+        const fY = shaftBot - fletchLen * 0.7;
+        const fletchColors = [acc, adjustBrightness(acc, 20), adjustBrightness(acc, -20)];
+        [-1, 0, 1].forEach((side, i) => {
+            ctx.save();
+            const vaneG = realistic
+                ? (() => { const g = ctx.createLinearGradient(cx, fY, cx + side * fletchW, fY); g.addColorStop(0, adjustBrightness(fletchColors[i], -10)); g.addColorStop(1, fletchColors[i]); return g; })()
+                : fletchColors[i];
+            ctx.fillStyle = vaneG;
+            if (!pixelated) { ctx.globalAlpha = 0.92; }
+            ctx.beginPath();
+            ctx.moveTo(cx, fY);
+            ctx.quadraticCurveTo(cx + side * fletchW * (side === 0 ? 0.001 : 1), fY + fletchLen * 0.35, cx + side * fletchW * (side === 0 ? 0.001 : 0.75), fY + fletchLen);
+            ctx.lineTo(cx, fY + fletchLen * 0.85);
+            ctx.closePath();
+            ctx.fill();
+            if (realistic) {
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                ctx.lineWidth = 0.6;
+                ctx.stroke();
+            }
+            ctx.restore();
+        });
+
+        // Nock
+        ctx.fillStyle = '#1c0f08';
+        ctx.fillRect(cx - shaftW, shaftBot - Math.round(3 * S), shaftW * 2, Math.round(6 * S));
+
+        if (realistic) drawGlowHalo(cx, shaftTop - headLen * 0.3, headLen * 0.5, glowCol, 1);
+
+        ctx.restore();
+        updateThreeTexture();
+    }
+
+    // ---- SICKLE ASSET (hoz / mini hoz) ----
+    function drawSickleAsset(cx, cy, base, acc, glowCol, style, isMini = false) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(-Math.PI / 4);
+        ctx.translate(-cx, -cy);
+
+        const pixelated = style === 'pixel';
+        const realistic = style === 'realistic';
+        const S = canvas.width / 256;
+
+        const scale = isMini ? 0.62 : 1;
+        const handleLen = canvas.height * 0.4 * scale;
+        const handleW   = pixelated ? 6 : Math.round(8 * S * scale);
+        const handleBot = cy + handleLen * 0.8;
+        const handleTop = cy - handleLen * 0.2;
+        const bladeR    = pixelated ? 34 * scale : Math.round(54 * S * scale);
+
+        if (!pixelated) {
+            ctx.save();
+            ctx.globalAlpha = 0.22;
+            ctx.filter = 'blur(6px)';
+            ctx.fillStyle = '#000';
+            ctx.fillRect(cx - bladeR, handleTop - bladeR * 1.6, bladeR * 2, handleBot - handleTop + bladeR * 1.6);
+            ctx.restore();
+        }
+
+        // ---- HANDLE — wood grip ----
+        const handleG = ctx.createLinearGradient(cx - handleW / 2, handleTop, cx + handleW / 2, handleTop);
+        handleG.addColorStop(0,   '#2d1301');
+        handleG.addColorStop(0.5, realistic ? '#8a4a1c' : '#78350f');
+        handleG.addColorStop(1,   '#2d1301');
+        ctx.fillStyle = handleG;
+        ctx.beginPath();
+        ctx.roundRect(cx - handleW / 2, handleTop, handleW, handleBot - handleTop, handleW * 0.4);
+        ctx.fill();
+        // grip wrap
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        for (let yy = handleTop + Math.round(8 * S); yy < handleBot - Math.round(10 * S); yy += Math.round(5 * S)) {
+            ctx.fillRect(cx - handleW / 2 - 1, yy, handleW + 2, Math.round(2 * S));
+        }
+        // pommel cap
+        ctx.fillStyle = adjustBrightness(acc, -20);
+        ctx.beginPath();
+        ctx.arc(cx, handleBot - Math.round(2 * S), Math.round(4 * S * scale), 0, Math.PI * 2);
+        ctx.fill();
+
+        // Metal ferrule where blade meets handle
+        ctx.fillStyle = adjustBrightness(acc, -10);
+        ctx.fillRect(cx - handleW * 0.9, handleTop - Math.round(2 * S), handleW * 1.8, Math.round(12 * S));
+
+        // ---- CURVED CRESCENT BLADE ----
+        const bladeCX = cx;
+        const bladeCY = handleTop - bladeR * 0.15;
+        if (realistic) {
+            ctx.save();
+            ctx.shadowColor = base;
+            ctx.shadowBlur = Math.round(20 * S);
+            const bladeG = ctx.createLinearGradient(bladeCX - bladeR, bladeCY - bladeR, bladeCX + bladeR, bladeCY + bladeR);
+            bladeG.addColorStop(0,    adjustBrightness(base, -35));
+            bladeG.addColorStop(0.28, '#dde4ed');
+            bladeG.addColorStop(0.5,  '#ffffff');
+            bladeG.addColorStop(0.58, base);
+            bladeG.addColorStop(0.82, '#b0b8c4');
+            bladeG.addColorStop(1,    adjustBrightness(base, -40));
+            ctx.fillStyle = bladeG;
+            ctx.beginPath();
+            // Outer curve (cutting edge) sweeping from handle up and around
+            ctx.arc(bladeCX, bladeCY, bladeR, Math.PI * 1.15, Math.PI * 2.05, false);
+            // Inner curve (spine) back to handle, thinner arc
+            ctx.arc(bladeCX, bladeCY, bladeR * 0.62, Math.PI * 2.05, Math.PI * 1.15, true);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Edge specular along outer curve
+            ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+            ctx.lineWidth = Math.max(1, Math.round(1.4 * S));
+            ctx.beginPath();
+            ctx.arc(bladeCX, bladeCY, bladeR, Math.PI * 1.18, Math.PI * 1.85, false);
+            ctx.stroke();
+
+            // Inner spine shading
+            ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+            ctx.lineWidth = Math.max(1, Math.round(2 * S));
+            ctx.beginPath();
+            ctx.arc(bladeCX, bladeCY, bladeR * 0.62, Math.PI * 1.2, Math.PI * 2, false);
+            ctx.stroke();
+
+            drawGlowHalo(bladeCX, bladeCY - bladeR * 0.3, bladeR * 0.6, glowCol, 2);
+        } else {
+            if (!pixelated) { ctx.shadowColor = base; ctx.shadowBlur = Math.round(14 * S); }
+            ctx.fillStyle = base;
+            ctx.beginPath();
+            ctx.arc(bladeCX, bladeCY, bladeR, Math.PI * 1.15, Math.PI * 2.05, false);
+            ctx.arc(bladeCX, bladeCY, bladeR * 0.6, Math.PI * 2.05, Math.PI * 1.15, true);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+            ctx.lineWidth = Math.max(1, Math.round(2 * S));
+            ctx.beginPath();
+            ctx.arc(bladeCX, bladeCY, bladeR, Math.PI * 1.2, Math.PI * 1.8, false);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+        updateThreeTexture();
+    }
+
     function drawChestAsset(cx, cy, base, acc, glowCol, style) {
         const pixelated = style === 'pixel';
         const realistic = style === 'realistic';
@@ -2433,12 +2965,26 @@ document.addEventListener('DOMContentLoaded', () => {
             shieldPath(cx, cy, w, h); ctx.fill();
             ctx.restore();
 
-            // Outer rim — polished steel bevel
+            // Leather strap peeking out from behind the bottom edge
+            ctx.save();
+            ctx.fillStyle = adjustBrightness('#5b3a1e', -10);
+            ctx.beginPath();
+            ctx.moveTo(cx - Math.round(9 * S), cy + h * 0.42);
+            ctx.lineTo(cx + Math.round(9 * S), cy + h * 0.42);
+            ctx.lineTo(cx + Math.round(6 * S), cy + h * 0.58);
+            ctx.lineTo(cx - Math.round(6 * S), cy + h * 0.58);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Outer rim — polished steel bevel with extra graduation for depth
             const rimG = ctx.createLinearGradient(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2);
             rimG.addColorStop(0,    '#f8fafc');
-            rimG.addColorStop(0.15, '#94a3b8');
+            rimG.addColorStop(0.12, '#cbd5e1');
+            rimG.addColorStop(0.28, '#94a3b8');
             rimG.addColorStop(0.45, adjustBrightness(acc, -10));
-            rimG.addColorStop(0.75, adjustBrightness(acc, -35));
+            rimG.addColorStop(0.65, adjustBrightness(acc, -22));
+            rimG.addColorStop(0.85, adjustBrightness(acc, -35));
             rimG.addColorStop(1,    '#0f172a');
             ctx.fillStyle = rimG;
             shieldPath(cx, cy, w, h); ctx.fill();
@@ -2449,6 +2995,12 @@ document.addEventListener('DOMContentLoaded', () => {
             shieldPath(cx, cy, w - bevel * 0.5, h - bevel * 0.5);
             ctx.stroke();
 
+            // Thin dark groove between rim and face for a machined look
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.lineWidth = Math.max(0.6, S * 0.6);
+            shieldPath(cx, cy, w - bevel * 1.5, h - bevel * 1.5);
+            ctx.stroke();
+
             // Inner enamel face
             const faceG = ctx.createRadialGradient(cx - w * 0.15, cy - h * 0.12, Math.round(8 * S), cx, cy, h * 0.55);
             faceG.addColorStop(0,   adjustBrightness(base, 40));
@@ -2456,6 +3008,27 @@ document.addEventListener('DOMContentLoaded', () => {
             faceG.addColorStop(1,   adjustBrightness(base, -45));
             ctx.fillStyle = faceG;
             shieldPath(cx, cy, w - bevel * 2, h - bevel * 2); ctx.fill();
+
+            // Faint diagonal sheen across the face
+            ctx.save();
+            shieldPath(cx, cy, w - bevel * 2, h - bevel * 2);
+            ctx.clip();
+            ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+            ctx.lineWidth = Math.round(10 * S);
+            ctx.beginPath();
+            ctx.moveTo(cx - w * 0.5, cy - h * 0.5);
+            ctx.lineTo(cx, cy + h * 0.1);
+            ctx.stroke();
+            ctx.restore();
+
+            // Corner rivets on the face, near the top corners
+            [-1, 1].forEach(side => {
+                const rx = cx + side * (w / 2 - bevel * 1.4), ry = cy - h * 0.32;
+                const rG = ctx.createRadialGradient(rx - 1, ry - 1, 0, rx, ry, Math.round(3.5 * S));
+                rG.addColorStop(0, '#fff'); rG.addColorStop(1, '#64748b');
+                ctx.fillStyle = rG;
+                ctx.beginPath(); ctx.arc(rx, ry, Math.round(3 * S), 0, Math.PI * 2); ctx.fill();
+            });
 
             // Boss (center metal knob)
             const bossR = Math.round(18 * S);
@@ -2466,6 +3039,9 @@ document.addEventListener('DOMContentLoaded', () => {
             bossG.addColorStop(1,   '#0f172a');
             ctx.fillStyle = bossG;
             ctx.beginPath(); ctx.arc(cx, cy, bossR, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.lineWidth = Math.max(0.6, S * 0.6);
+            ctx.stroke();
             drawSpecular(cx - bossR * 0.3, cy - bossR * 0.3, bossR * 0.5, 0.8);
 
             // Decorative rivets around boss
@@ -2483,23 +3059,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } else {
             // ---- PIXEL / CARTOON SHIELD ----
-            ctx.fillStyle = acc;
+            ctx.fillStyle = adjustBrightness(acc, -20);
             shieldPath(cx, cy, w, h); ctx.fill();
 
-            ctx.fillStyle = base;
+            const faceG = pixelated ? base : (() => {
+                const g = ctx.createLinearGradient(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2);
+                g.addColorStop(0, adjustBrightness(base, 22));
+                g.addColorStop(1, adjustBrightness(base, -15));
+                return g;
+            })();
+            ctx.fillStyle = faceG;
             shieldPath(cx, cy, w - bevel * 2, h - bevel * 2); ctx.fill();
 
+            if (!pixelated) {
+                ctx.strokeStyle = adjustBrightness(acc, -40);
+                ctx.lineWidth = Math.round(1.5 * S);
+                shieldPath(cx, cy, w - bevel * 2, h - bevel * 2); ctx.stroke();
+            }
+
             if (!pixelated) { ctx.shadowColor = base; ctx.shadowBlur = Math.round(12 * S); }
-            ctx.fillStyle = '#ffffff';
+            const bossG2 = pixelated ? '#ffffff' : (() => {
+                const g = ctx.createRadialGradient(cx - 3 * S, cy - Math.round(13 * S), 0, cx, cy - Math.round(10 * S), Math.round(13 * S));
+                g.addColorStop(0, '#ffffff');
+                g.addColorStop(1, adjustBrightness(acc, 10));
+                return g;
+            })();
+            ctx.fillStyle = bossG2;
             ctx.beginPath();
             ctx.arc(cx, cy - Math.round(10 * S), Math.round(13 * S), 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
+            if (!pixelated) {
+                ctx.strokeStyle = adjustBrightness(acc, -30);
+                ctx.lineWidth = Math.round(1 * S);
+                ctx.stroke();
+            }
 
-            // Simple cross emblem
+            // Cross emblem with a thin border for a crisper, more "polished" silhouette
             ctx.fillStyle = acc;
-            ctx.fillRect(cx - Math.round(2.5 * S), cy - Math.round(20 * S), Math.round(5 * S), Math.round(20 * S));
-            ctx.fillRect(cx - Math.round(10 * S), cy - Math.round(13 * S), Math.round(20 * S), Math.round(5 * S));
+            ctx.strokeStyle = adjustBrightness(acc, -45);
+            ctx.lineWidth = pixelated ? 1 : Math.round(1 * S);
+            [
+                [cx - Math.round(2.5 * S), cy - Math.round(20 * S), Math.round(5 * S), Math.round(20 * S)],
+                [cx - Math.round(10 * S), cy - Math.round(13 * S), Math.round(20 * S), Math.round(5 * S)]
+            ].forEach(([x, y, ww, hh]) => {
+                ctx.fillRect(x, y, ww, hh);
+                if (!pixelated) ctx.strokeRect(x, y, ww, hh);
+            });
+
+            // Corner studs for a bit more detail on the non-realistic variant
+            if (!pixelated) {
+                [-1, 1].forEach(side => {
+                    const rx = cx + side * (w / 2 - bevel * 1.3), ry = cy - h * 0.3;
+                    ctx.fillStyle = '#f1f5f9';
+                    ctx.beginPath(); ctx.arc(rx, ry, Math.round(2.5 * S), 0, Math.PI * 2); ctx.fill();
+                });
+            }
         }
 
         ctx.restore();
@@ -2853,7 +3468,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const pixelated = style === 'pixel';
         const realistic = style === 'realistic';
         const S = canvas.width / 256;
-        const radius = pixelated ? 52 : Math.round(72 * S);
+        const radius = pixelated ? 54 : Math.round(76 * S);
+        const armX = cx + radius * 0.32;
+        const topAngle = Math.PI * 0.58;
+        const botAngle = Math.PI * 1.42;
+        const topX = armX + radius * Math.cos(topAngle);
+        const topY = cy + radius * Math.sin(topAngle);
+        const botX = armX + radius * Math.cos(botAngle);
+        const botY = cy + radius * Math.sin(botAngle);
 
         ctx.save();
         ctx.translate(cx, cy);
@@ -2861,57 +3483,191 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.translate(-cx, -cy);
 
         if (realistic) {
-            // Bow body — curved wood limb
-            const bowG = ctx.createLinearGradient(cx - radius, cy, cx + radius, cy);
-            bowG.addColorStop(0,   adjustBrightness(base, 30));
-            bowG.addColorStop(0.25, base);
-            bowG.addColorStop(0.6,  adjustBrightness(base, -20));
-            bowG.addColorStop(1,   adjustBrightness(base, -40));
-            ctx.strokeStyle = bowG;
-            ctx.lineWidth = Math.round(10 * S);
+            // Drop shadow
+            ctx.save();
+            ctx.globalAlpha = 0.25; ctx.filter = 'blur(6px)';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = Math.round(13 * S);
             ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.arc(cx + radius * 0.35, cy, radius, Math.PI * 0.55, Math.PI * 1.45);
+            ctx.arc(armX + Math.round(3 * S), cy + Math.round(3 * S), radius, topAngle, botAngle);
             ctx.stroke();
-            // Specular streak along bow
-            ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-            ctx.lineWidth = Math.round(2.5 * S);
+            ctx.restore();
+
+            // ---- Bow limbs — layered wood gradient (recurve profile) ----
+            const bowG = ctx.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
+            bowG.addColorStop(0,    adjustBrightness(base, 45));
+            bowG.addColorStop(0.22, adjustBrightness(base, 15));
+            bowG.addColorStop(0.5,  base);
+            bowG.addColorStop(0.75, adjustBrightness(base, -25));
+            bowG.addColorStop(1,    adjustBrightness(base, -48));
+            ctx.strokeStyle = bowG;
+            ctx.lineWidth = Math.round(11 * S);
+            ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.arc(cx + radius * 0.35 + Math.round(2 * S), cy, radius - Math.round(2 * S), Math.PI * 0.62, Math.PI * 1.38);
+            ctx.arc(armX, cy, radius, topAngle, botAngle);
             ctx.stroke();
-            // String
-            ctx.strokeStyle = '#e5e7eb';
-            ctx.lineWidth = Math.max(1, Math.round(1.5 * S));
-            const topX = cx + radius * 0.35 + radius * Math.cos(Math.PI * 0.55);
-            const topY = cy + radius * Math.sin(Math.PI * 0.55);
-            const botX = cx + radius * 0.35 + radius * Math.cos(Math.PI * 1.45);
-            const botY = cy + radius * Math.sin(Math.PI * 1.45);
+
+            // Dark outline for definition
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.lineWidth = Math.max(1, Math.round(1 * S));
+            ctx.beginPath();
+            ctx.arc(armX, cy, radius + Math.round(5.5 * S), topAngle, botAngle);
+            ctx.stroke();
+
+            // Wood-grain streaks
+            ctx.save();
+            ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+            ctx.lineWidth = Math.max(0.6, S * 0.6);
+            for (let t = 0.12; t < 0.95; t += 0.13) {
+                const a = topAngle + (botAngle - topAngle) * t;
+                ctx.beginPath();
+                ctx.arc(armX, cy, radius - Math.round(3 * S), a, a + 0.05);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // Specular highlight streak along outer curve
+            ctx.strokeStyle = 'rgba(255,255,255,0.32)';
+            ctx.lineWidth = Math.round(2.2 * S);
+            ctx.beginPath();
+            ctx.arc(armX + Math.round(2 * S), cy, radius - Math.round(2.5 * S), topAngle + 0.08, botAngle - 0.08);
+            ctx.stroke();
+
+            // Tip nocks (horn caps at each end)
+            [[topX, topY, topAngle], [botX, botY, botAngle]].forEach(([tx, ty]) => {
+                const capG = ctx.createRadialGradient(tx - 2 * S, ty - 2 * S, 0, tx, ty, Math.round(7 * S));
+                capG.addColorStop(0, '#f5efe3');
+                capG.addColorStop(0.5, acc);
+                capG.addColorStop(1, adjustBrightness(acc, -35));
+                ctx.fillStyle = capG;
+                ctx.beginPath();
+                ctx.arc(tx, ty, Math.round(6 * S), 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.lineWidth = Math.max(0.6, S * 0.6);
+                ctx.stroke();
+            });
+
+            // ---- Grip / riser — wrapped leather at center ----
+            const gripH = Math.round(30 * S), gripW = Math.round(11 * S);
+            ctx.save();
+            ctx.translate(armX - radius * 0.03, cy);
+            const gripG = ctx.createLinearGradient(-gripW / 2, 0, gripW / 2, 0);
+            gripG.addColorStop(0, adjustBrightness(acc, -30));
+            gripG.addColorStop(0.5, acc);
+            gripG.addColorStop(1, adjustBrightness(acc, -45));
+            ctx.fillStyle = gripG;
+            ctx.beginPath();
+            ctx.roundRect(-gripW / 2, -gripH / 2, gripW, gripH, Math.round(3 * S));
+            ctx.fill();
+            // Wrap bands
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.lineWidth = Math.max(0.7, S * 0.7);
+            for (let i = -2; i <= 2; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-gripW / 2, i * gripH / 5.5);
+                ctx.lineTo(gripW / 2, i * gripH / 5.5);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // ---- Bowstring — taut, subtle double-strand look ----
+            const midPullX = armX - radius * 0.18;
+            ctx.strokeStyle = '#f1f5f9';
+            ctx.lineWidth = Math.max(1, Math.round(1.4 * S));
             ctx.beginPath();
             ctx.moveTo(topX, topY);
-            ctx.quadraticCurveTo(cx + radius * 0.22, cy, botX, botY);
+            ctx.quadraticCurveTo(midPullX, cy, botX, botY);
             ctx.stroke();
-            // Arrow on string
-            ctx.strokeStyle = acc;
-            ctx.lineWidth = Math.round(3 * S);
+            ctx.strokeStyle = 'rgba(15,23,42,0.25)';
+            ctx.lineWidth = Math.max(0.5, S * 0.5);
             ctx.beginPath();
-            ctx.moveTo(cx + radius * 0.3, cy - radius * 0.8);
-            ctx.lineTo(cx + radius * 0.3, cy + radius * 0.8);
+            ctx.moveTo(topX, topY);
+            ctx.quadraticCurveTo(midPullX + Math.round(1 * S), cy, botX, botY);
             ctx.stroke();
-            drawGlowHalo(cx, cy, radius * 0.55, glowCol, 2);
+
+            // ---- Nocked arrow resting on the string ----
+            const arrowTipX = armX - radius * 0.62;
+            ctx.strokeStyle = adjustBrightness('#8a5a2b', -10);
+            ctx.lineWidth = Math.round(2.4 * S);
+            ctx.beginPath();
+            ctx.moveTo(arrowTipX, cy);
+            ctx.lineTo(midPullX + Math.round(2 * S), cy);
+            ctx.stroke();
+            // Arrowhead
+            ctx.save();
+            ctx.shadowColor = base; ctx.shadowBlur = Math.round(8 * S);
+            ctx.fillStyle = adjustBrightness(base, -10);
+            ctx.beginPath();
+            ctx.moveTo(arrowTipX - Math.round(9 * S), cy);
+            ctx.lineTo(arrowTipX + Math.round(2 * S), cy - Math.round(4 * S));
+            ctx.lineTo(arrowTipX + Math.round(2 * S), cy + Math.round(4 * S));
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            // Fletching
+            ctx.fillStyle = acc;
+            ctx.beginPath();
+            ctx.moveTo(midPullX + Math.round(2 * S), cy);
+            ctx.lineTo(midPullX + Math.round(9 * S), cy - Math.round(5 * S));
+            ctx.lineTo(midPullX + Math.round(9 * S), cy + Math.round(5 * S));
+            ctx.closePath();
+            ctx.fill();
+
+            drawGlowHalo(armX, cy, radius * 0.6, glowCol, 2);
         } else {
-            ctx.strokeStyle = base;
-            ctx.lineWidth = pixelated ? 6 : Math.round(8 * S);
-            ctx.lineCap = 'round';
+            // ---- PIXEL / CARTOON BOW ----
+            ctx.strokeStyle = pixelated ? base : adjustBrightness(base, -15);
+            ctx.lineWidth = pixelated ? 7 : Math.round(9 * S);
+            ctx.lineCap = pixelated ? 'butt' : 'round';
             ctx.beginPath();
-            ctx.arc(cx + radius * 0.35, cy, radius, Math.PI * 0.55, Math.PI * 1.45);
+            ctx.arc(armX, cy, radius, topAngle, botAngle);
             ctx.stroke();
-            ctx.strokeStyle = '#d1d5db';
+
+            if (!pixelated) {
+                ctx.strokeStyle = adjustBrightness(base, 25);
+                ctx.lineWidth = Math.round(3 * S);
+                ctx.beginPath();
+                ctx.arc(armX + Math.round(1.5 * S), cy, radius - Math.round(2 * S), topAngle + 0.1, botAngle - 0.1);
+                ctx.stroke();
+            }
+
+            // Tip caps
+            [[topX, topY], [botX, botY]].forEach(([tx, ty]) => {
+                ctx.fillStyle = acc;
+                ctx.beginPath();
+                ctx.arc(tx, ty, pixelated ? 4 : Math.round(5.5 * S), 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Grip block
+            ctx.fillStyle = acc;
+            const gw = pixelated ? 8 : Math.round(10 * S), gh = pixelated ? 22 : Math.round(28 * S);
+            ctx.fillRect(armX - gw / 2 - radius * 0.02, cy - gh / 2, gw, gh);
+
+            // String
+            ctx.strokeStyle = pixelated ? '#e5e7eb' : '#d1d5db';
             ctx.lineWidth = pixelated ? 1 : Math.round(2 * S);
-            const topX2 = cx + radius * 0.35 + radius * Math.cos(Math.PI * 0.55);
-            const topY2 = cy + radius * Math.sin(Math.PI * 0.55);
-            const botX2 = cx + radius * 0.35 + radius * Math.cos(Math.PI * 1.45);
-            const botY2 = cy + radius * Math.sin(Math.PI * 1.45);
-            ctx.beginPath(); ctx.moveTo(topX2, topY2); ctx.quadraticCurveTo(cx + radius * 0.22, cy, botX2, botY2); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(topX, topY);
+            ctx.quadraticCurveTo(armX - radius * 0.18, cy, botX, botY);
+            ctx.stroke();
+
+            // Simple nocked arrow
+            ctx.strokeStyle = '#94530f';
+            ctx.lineWidth = pixelated ? 2 : Math.round(3 * S);
+            ctx.beginPath();
+            ctx.moveTo(armX - radius * 0.62, cy);
+            ctx.lineTo(armX - radius * 0.16, cy);
+            ctx.stroke();
+            ctx.fillStyle = base;
+            ctx.beginPath();
+            ctx.moveTo(armX - radius * 0.72, cy);
+            ctx.lineTo(armX - radius * 0.58, cy - Math.round(4 * S));
+            ctx.lineTo(armX - radius * 0.58, cy + Math.round(4 * S));
+            ctx.closePath();
+            ctx.fill();
         }
 
         ctx.restore();

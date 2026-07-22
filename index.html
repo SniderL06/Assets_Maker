@@ -23,6 +23,8 @@
     <script src="pollinations-generator.js"></script>
     <!-- Free Image-to-3D Generator (TripoSR via Hugging Face — no API key required) -->
     <script src="free3d-generator.js"></script>
+    <!-- Farmventure 3D World & Asset Palette Module -->
+    <script src="farmventure-world.js"></script>
     <!-- Style Sheet -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -575,6 +577,11 @@
                         </button>
 
                         <div class="divider"></div>
+                    </div>
+
+                    <!-- ═══════ FARMVENTURE 3D ASSET PALETTE ═══════ -->
+                    <div id="farmventure-palette-container" style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(168,85,247,0.25); border-radius: 8px; padding: 10px; margin-bottom: 16px;">
+                        <!-- Rendered dynamically by FarmventureWorld.renderAssetPaletteUI -->
                     </div>
 
                     <!-- ═══════ COLOR ADJUSTMENTS ═══════ -->

@@ -138,13 +138,18 @@ const HFGenerator = (() => {
                     'X-Wait-For-Model': 'true'
                 },
                 body: JSON.stringify(body),
-                signal: AbortSignal.timeout(90000) // 90s timeout
+                signal: AbortSignal.timeout(45000)
             });
         } catch (fetchErr) {
-            // No hay proxy de respaldo: los proxies CORS públicos no reenvían
-            // cabeceras Authorization, así que nunca funcionan aquí. Si esto falla,
-            // suele ser un problema de red/DNS o de que el token no es válido.
-            throw new Error(`No se pudo contactar con ${modelUrl}: ${fetchErr.message}`);
+            console.warn('[HFGenerator] HF network/CORS error, invoking Pollinations AI fallback:', fetchErr);
+            // Fallback to Pollinations AI (free, zero-CORS, highly reliable image generation API)
+            const encodedPrompt = encodeURIComponent(positivePrompt);
+            const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${Math.floor(Math.random()*100000)}&nologo=true`;
+            
+            response = await fetch(pollinationsUrl, {
+                method: 'GET',
+                signal: AbortSignal.timeout(30000)
+            });
         }
 
         if (!response.ok) {

@@ -149,6 +149,41 @@ document.addEventListener('DOMContentLoaded', () => {
             // Event listeners
             setupEventListeners();
             setupCanvasDrawing();
+
+            // Initialize Farmventure Asset Palette UI
+            if (window.FarmventureWorld) {
+                const paletteContainer = document.getElementById('farmventure-palette-container');
+                if (paletteContainer) {
+                    FarmventureWorld.renderAssetPaletteUI(paletteContainer, (asset) => {
+                        // Switch to 3D mode if in 2D
+                        const threeContainer = document.getElementById('three-container');
+                        const canvasContainer = document.getElementById('canvas-container');
+                        if (threeContainer) threeContainer.style.display = 'block';
+                        if (canvasContainer) canvasContainer.style.display = 'none';
+
+                        showLoader(`📦 Insertando ${asset.name}...`, 'Cargando modelo 3D...');
+                        FarmventureWorld.loadGLBModel(asset.file).then(mesh => {
+                            hideLoader();
+                            if (mesh) {
+                                // Position randomly near center of 3D world
+                                mesh.position.set(
+                                    (Math.random() - 0.5) * 3,
+                                    0.2,
+                                    (Math.random() - 0.5) * 3
+                                );
+                                mesh.scale.setScalar(0.75);
+                                scene.add(mesh);
+                                showNotification(`✨ ${asset.name} agregado al mundo 3D`);
+                            } else {
+                                showNotification(`⚠️ No se pudo cargar ${asset.name}`);
+                            }
+                        }).catch(err => {
+                            hideLoader();
+                            showNotification(`⚠️ Error al cargar asset: ${err.message}`);
+                        });
+                    });
+                }
+            }
         } catch (error) {
             console.error("Runtime error during init:", error);
             showNotification("Error de inicialización: " + error.message);
@@ -5191,7 +5226,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         else if (prompt.includes('dog') || prompt.includes('perro') || prompt.includes('cat') || prompt.includes('gato') || prompt.includes('wolf') || prompt.includes('lobo') || prompt.includes('chicken') || prompt.includes('gallina') || prompt.includes('gallo') || prompt.includes('pollo')) {
             const isChicken = prompt.includes('chicken') || prompt.includes('gallina') || prompt.includes('gallo') || prompt.includes('pollo');
-            const animalColorHex = document.querySelector('.swatch.selected')?.getAttribute('data-color') || '#c026d3';
+            const activeSwatch = document.querySelector('.swatch.selected');
+            const animalColorHex = activeSwatch ? activeSwatch.getAttribute('data-color') : '#c026d3';
             const animalMat = new THREE.MeshStandardMaterial({
                 color: new THREE.Color(animalColorHex),
                 roughness: 0.75,
@@ -5689,7 +5725,25 @@ document.addEventListener('DOMContentLoaded', () => {
             currentMesh = group;
         }
         else if (meshType === 'scene_3d') {
-            currentMesh = generateReal3DMesh();
+            if (window.FarmventureWorld) {
+                showLoader('🏔️ Generando Diorama 3D...', 'Cargando terreno, ríos, cascadas y bosques...');
+                FarmventureWorld.buildWorldDiorama().then(dioramaGroup => {
+                    if (currentMesh) scene.remove(currentMesh);
+                    currentMesh = dioramaGroup;
+                    scene.add(currentMesh);
+                    orbitControls.target.set(0, 0.4, 0);
+                    orbitControls.update();
+                    hideLoader();
+                }).catch(err => {
+                    console.error('[FarmventureWorld] Error building diorama:', err);
+                    currentMesh = generateReal3DMesh();
+                    scene.add(currentMesh);
+                    hideLoader();
+                });
+                return; // async loader takes care of scene.add
+            } else {
+                currentMesh = generateReal3DMesh();
+            }
         }
 
         if (meshType !== 'isometric_terrain' && meshType !== 'voxel_3d' && meshType !== 'mesh_3d' && meshType !== 'scene_3d') {
